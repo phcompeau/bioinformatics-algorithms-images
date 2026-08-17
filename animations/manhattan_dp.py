@@ -87,12 +87,12 @@ RENDER_DPI = 120
 OUTPUT_WIDTH = 1200
 OUTPUT_HEIGHT = 900
 
-SPACING = 1.12
-NODE_RADIUS = 0.26
+SPACING = 1.20
+NODE_RADIUS = 0.28
 # The fill needs room under the grid for the recurrence block; the backtrack has
 # no block, so its grid is recentered in the taller space.
-GRID_TOP_FILL = 6.45
-GRID_TOP_BACKTRACK = 5.80
+GRID_TOP_FILL = 6.75
+GRID_TOP_BACKTRACK = 6.14
 GRID_TOP = GRID_TOP_FILL
 GRID_LEFT = (10.0 - SPACING * (COLS - 1)) / 2
 EDGE_GAP = 0.07
@@ -120,16 +120,18 @@ READING_PER_CHAR_MS = 42
 READING_MIN_MS = 1200
 READING_MAX_MS = 3200
 REPEAT_CAPTION_FACTOR = 0.55
-INIT_MS = 430
+INIT_MS = 1600
 FINAL_HOLD_MS = 4600
 
 # The panel shows fresh arithmetic at every step, so these frames need reading
 # time exactly like a caption does. The dwell decays: the first few nodes carry
 # the explanation, and once the pattern is familiar the same work reads faster.
-CONSIDER_SCHEDULE = [(3, 2200), (7, 1600)]
-CONSIDER_MS_LATE = 1100
-COMMIT_SCHEDULE = [(7, 700)]
-COMMIT_MS_LATE = 500
+CONSIDER_SCHEDULE = [(3, 3400), (8, 2800)]
+CONSIDER_MS_LATE = 2200
+COMMIT_SCHEDULE = [(3, 1200)]
+COMMIT_MS_LATE = 900
+INTRO_MS = 4000
+SOURCE_MS = 1600
 BACKTRACK_SCHEDULE = [(2, 2000)]
 BACKTRACK_MS_LATE = 1400
 
@@ -335,7 +337,7 @@ def verify() -> "list[str]":
     assert SPACING > 2 * NODE_RADIUS + 0.4, "nodes too close for a weight label"
     assert node_xy(0, 0)[0] - NODE_RADIUS - WEIGHT_OFFSET > 0.3, "grid runs off the left"
     assert node_xy(0, COLS - 1)[0] + NODE_RADIUS < 9.7, "grid runs off the right"
-    assert node_xy(0, 0)[1] + NODE_RADIUS < COUNTER_Y - 0.15, "grid collides with counter"
+    assert node_xy(0, 0)[1] + NODE_RADIUS + WEIGHT_OFFSET < 7.42, "grid runs off the top"
     left_margin = node_xy(0, 0)[0] - NODE_RADIUS
     right_margin = 10.0 - (node_xy(0, COLS - 1)[0] + NODE_RADIUS)
     assert abs(left_margin - right_margin) < 0.01, "grid is not horizontally centered"
@@ -362,7 +364,7 @@ def draw_node(axis: "plt.Axes", row: int, col: int, label: str,
                             edgecolor=outline, linewidth=width, zorder=5)
     axis.add_patch(circle)
     if label != "":
-        axis.text(x, y, label, fontsize=13.5, color=TEXT_DARK, ha="center",
+        axis.text(x, y, label, fontsize=14.5, color=TEXT_DARK, ha="center",
                   va="center", fontproperties=OPTIMA_BOLD, zorder=6)
 
 
@@ -465,8 +467,9 @@ def draw_frame(spec: dict, output_path: str) -> None:
     axis.set_aspect("equal")
     axis.axis("off")
 
-    axis.text(5.0, CAPTION_Y, spec["caption"], fontsize=16.5, color=TEXT_DARK,
-              ha="center", va="center", fontproperties=OPTIMA_ITALIC)
+    if spec["caption"] != "":
+        axis.text(5.0, CAPTION_Y, spec["caption"], fontsize=16.5, color=TEXT_DARK,
+                  ha="center", va="center", fontproperties=OPTIMA_ITALIC)
     if spec["counter"] != "":
         axis.text(5.0, COUNTER_Y, spec["counter"], fontsize=13.5,
                   color=spec["counter_color"], ha="center", va="center",
@@ -597,9 +600,7 @@ def build_fill_specs() -> "list[dict]":
     seen_captions = set()
     interior_index = 0
 
-    intro = "Every node's score is the best of the ways to reach it."
-    spec = base_spec(intro, "0 of 25 nodes scored", TEXT_DARK,
-                     reading_duration(intro, False))
+    spec = base_spec("", "", TEXT_DARK, INTRO_MS)
     spec["block"] = {
         "prefix": r"$s_{i,j}$ = max",
         "brace": True,
@@ -611,7 +612,6 @@ def build_fill_specs() -> "list[dict]":
         ],
     }
     specs.append(spec)
-    seen_captions.add(intro)
 
     node_index = 0
     while node_index < len(FILL_ORDER):
@@ -620,21 +620,17 @@ def build_fill_specs() -> "list[dict]":
         col = node[1]
 
         if node == (0, 0):
-            caption = "The source scores 0: no edges have been taken yet."
-            step = base_spec(caption, "1 of 25 nodes scored", TEXT_DARK,
-                             reading_duration(caption, False))
+            step = base_spec("", "", TEXT_DARK, SOURCE_MS)
             computed.append(node)
             step["node_labels"] = labels_for(computed)
             step["edge_styles"] = styles_for(computed, faded)
             step["node_rings"][node] = TEXT_DARK
             step["block"] = {"prefix": r"$s_{0,0}$ = 0", "brace": False, "lines": []}
             specs.append(step)
-            seen_captions.add(caption)
             node_index = node_index + 1
             continue
 
         if row == 0 or col == 0:
-            caption = "Along the top row and left column there is only one way in."
             if row == 0:
                 direction = "right"
                 color = BLUE
@@ -644,12 +640,7 @@ def build_fill_specs() -> "list[dict]":
             computed.append(node)
             line = term_line(node, direction, color)
             line["col2"] = "= %d" % VALUES[row][col]
-            if caption in seen_captions:
-                duration = INIT_MS
-            else:
-                duration = reading_duration(caption, False)
-            step = base_spec(caption, "%d of 25 nodes scored" % len(computed),
-                             TEXT_DARK, duration)
+            step = base_spec("", "", TEXT_DARK, INIT_MS)
             step["node_labels"] = labels_for(computed)
             step["edge_styles"] = styles_for(computed, faded)
             step["node_rings"][node] = color
@@ -659,7 +650,6 @@ def build_fill_specs() -> "list[dict]":
                 "lines": [line],
             }
             specs.append(step)
-            seen_captions.add(caption)
             node_index = node_index + 1
             continue
 
@@ -667,12 +657,6 @@ def build_fill_specs() -> "list[dict]":
         from_above = VALUES[row - 1][col] + DOWN_WEIGHTS[row - 1][col]
         left_edge = ((row, col - 1), (row, col))
         above_edge = ((row - 1, col), (row, col))
-        tie = from_left == from_above
-        if tie:
-            caption = "Both ways in give the same score, so break the tie horizontally."
-        else:
-            caption = "Compare the two ways in, then keep the larger."
-
         block = {
             "prefix": r"$s_{%d,%d}$ = max" % (row, col),
             "brace": True,
@@ -680,7 +664,7 @@ def build_fill_specs() -> "list[dict]":
         }
 
         consider = base_spec(
-            caption, "%d of 25 nodes scored" % len(computed), TEXT_DARK,
+            "", "", TEXT_DARK,
             scheduled_duration(interior_index, CONSIDER_SCHEDULE, CONSIDER_MS_LATE))
         consider["node_labels"] = labels_for(computed)
         consider["edge_styles"] = styles_for(computed, faded)
@@ -704,7 +688,7 @@ def build_fill_specs() -> "list[dict]":
         computed.append(node)
         faded.add(loser_edge)
         commit = base_spec(
-            caption, "%d of 25 nodes scored" % len(computed), TEXT_DARK,
+            "", "", TEXT_DARK,
             scheduled_duration(interior_index, COMMIT_SCHEDULE, COMMIT_MS_LATE))
         commit["node_labels"] = labels_for(computed)
         commit["edge_styles"] = styles_for(computed, faded)
@@ -721,12 +705,10 @@ def build_fill_specs() -> "list[dict]":
         commit["block"] = settled
         specs.append(commit)
 
-        seen_captions.add(caption)
         interior_index = interior_index + 1
         node_index = node_index + 1
 
-    outro = "Every node scored, and the sink holds the best possible weight."
-    final = base_spec(outro, "25 of 25 nodes scored", TEXT_DARK, FINAL_HOLD_MS)
+    final = base_spec("", "", TEXT_DARK, FINAL_HOLD_MS)
     final["node_labels"] = labels_for(computed)
     final["edge_styles"] = styles_for(computed, faded)
     final["node_rings"][(ROWS - 1, COLS - 1)] = RED
@@ -746,8 +728,7 @@ def build_backtrack_specs() -> "list[dict]":
     all_computed = list(FILL_ORDER)
     sink = (ROWS - 1, COLS - 1)
 
-    intro = "Each node kept one edge: the one it scored best from."
-    spec = base_spec(intro, "", TEXT_DARK, reading_duration(intro, False))
+    spec = base_spec("", "", TEXT_DARK, INTRO_MS)
     spec["node_labels"] = all_labels
     spec["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
     spec["node_rings"][sink] = RED
@@ -759,12 +740,8 @@ def build_backtrack_specs() -> "list[dict]":
         target = PATH[index]
         source = PATH[index - 1]
         traced.append((source, target))
-        if index == len(PATH) - 1:
-            caption = "Start at the sink and step back along the edge it kept."
-        else:
-            caption = "Keep stepping back, one kept edge at a time."
         step = base_spec(
-            caption, "", RED,
+            "", "", RED,
             scheduled_duration(len(traced) - 1, BACKTRACK_SCHEDULE, BACKTRACK_MS_LATE))
         step["node_labels"] = all_labels
         step["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
@@ -780,9 +757,7 @@ def build_backtrack_specs() -> "list[dict]":
     while step_index < len(PATH) - 1:
         pieces.append(str(edge_weight(PATH[step_index], PATH[step_index + 1])))
         step_index = step_index + 1
-    outro = ("The longest path: " + " + ".join(pieces)
-             + " = %d, the score waiting at the sink." % VALUES[sink[0]][sink[1]])
-    final = base_spec(outro, "", RED, FINAL_HOLD_MS)
+    final = base_spec("", "", RED, FINAL_HOLD_MS)
     final["node_labels"] = all_labels
     final["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
     for edge in traced:

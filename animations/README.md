@@ -65,7 +65,11 @@ A pair covering the two halves of dynamic programming, on the same 5x5 weighted
 grid as `images/Alignment/manhattan_revisited_grid-1.png` through `-5.png` and
 `images/Alignment/backtracking.png`.
 
-**Filling in** (`manhattan_dp_fill.gif`, about 48 s). Under the grid, the book's
+Neither animation carries a caption or a progress counter: the grid is the whole
+story, and the explanation belongs in the figure caption on the page. Suggested
+captions are below.
+
+**Filling in** (`manhattan_dp_fill.gif`, about 80 s). Under the grid, the book's
 recurrence from `images/Alignment/Manhattan_recurrence33.png` is instantiated at
 whichever node is being computed, in the book's own wording and notation:
 
@@ -82,11 +86,11 @@ the top row and left column shows its single-term form, so `5 = 3 + 2` and
 where both predecessors offer 22, is called out and broken horizontally to match
 the published figure.
 
-**Backtracking** (`manhattan_dp_backtrack.gif`, about 20 s). This one has no
-formula block; the picture carries it. All 40 edges stay on screen, with the 16
-edges no node chose drawn in light gray so what was discarded is still visible.
-Each step turns one kept edge red, walking back from the sink to the source. The
-caption does the explaining.
+**Backtracking** (`manhattan_dp_backtrack.gif`, about 21 s). No formula block
+here either; the picture carries it entirely. All 40 edges stay on screen, with
+the 16 edges no node chose drawn in light gray so what was discarded is still
+visible. Each step turns one kept edge red, walking back from the sink to the
+source.
 
 Because the fill leaves its discarded edges gray, the fill's last frame and the
 backtrack's first frame show the same graph, and a check asserts they agree.
@@ -109,14 +113,16 @@ For pasting beside the GIFs in Cogniterra or on a course page.
 > **Filling in the Manhattan network.** Each node's score is the best of the ways
 > to reach it: compare the score above it plus the vertical edge weight against
 > the score to its left plus the horizontal edge weight, and keep the larger. The
-> discarded option fades to gray. Nodes in the top row and left column have only
-> one way in, so there is nothing to compare.
+> recurrence below the grid is evaluated for whichever node is being scored, and
+> the discarded option fades to gray. Nodes in the top row and left column have
+> only one way in, so there is nothing to compare. Watch the fourth row, where
+> both ways into a node give 22 and the tie is broken horizontally.
 
 > **Backtracking through the Manhattan network.** Every node remembers the single
 > edge it scored best from; the edges no node chose are grayed out. Starting at
 > the sink and following those remembered edges backwards recovers the
-> highest-scoring path, whose edge weights sum to the score that was already
-> waiting at the sink.
+> highest-scoring path. Its edge weights, 1 + 3 + 6 + 7 + 5 + 8 + 2 + 2, sum to
+> 34, which is the score that was already waiting at the sink.
 
 ## Method
 
