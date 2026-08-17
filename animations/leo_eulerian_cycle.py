@@ -122,6 +122,10 @@ READING_PER_CHAR_MS = 42
 READING_MIN_MS = 1500
 READING_MAX_MS = 3200
 REPEAT_CAPTION_FACTOR = 0.6
+RENDER_DPI = 120
+OUTPUT_WIDTH = 1200
+OUTPUT_HEIGHT = 900
+
 NODE_ARRIVAL_MS = 300
 REWALK_ARRIVAL_MS = 130
 FINAL_HOLD_MS = 4200
@@ -498,7 +502,7 @@ def draw_ant(axis: "plt.Axes", x: float, y: float, heading: float) -> None:
 
 def draw_frame(spec: dict, output_path: str) -> None:
     """Render one frame from a state dict produced by build_frame_specs."""
-    figure, axis = plt.subplots(figsize=(10, 7.5), dpi=100)
+    figure, axis = plt.subplots(figsize=(10, 7.5), dpi=RENDER_DPI)
     axis.set_xlim(0, 10)
     axis.set_ylim(0, 7.5)
     axis.set_aspect("equal")
@@ -687,8 +691,8 @@ def main() -> None:
     durations = []
     for spec in specs:
         durations.append(spec["duration_ms"])
-    print("Rendering %d frames, %.1f s of playback..."
-          % (len(specs), sum(durations) / 1000.0))
+    print("Rendering %d frames at %dx%d, %.1f s of playback..."
+          % (len(specs), OUTPUT_WIDTH, OUTPUT_HEIGHT, sum(durations) / 1000.0))
     directory = tempfile.mkdtemp(prefix="leo_frames_")
     frame_paths = []
     index = 0
@@ -698,7 +702,7 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=800, height=600,
+    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
                  frame_durations=durations)
     print("Saved " + sys.argv[1])
     print("Frames kept in " + directory)
