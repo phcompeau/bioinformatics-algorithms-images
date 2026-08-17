@@ -37,7 +37,7 @@ the progress readable without counting arrows.
 ### Regenerating
 
 Requires Python 3 with `matplotlib`, `numpy`, and `Pillow`, plus the Optima
-font (standard on macOS).
+font (standard on macOS). Output is 1200x900 and loops forever.
 
 ```
 cd animations
@@ -45,7 +45,7 @@ python3 leo_eulerian_cycle.py ../images/Assembly/Leo_eulerian_cycle.gif
 ```
 
 The script prints its structural checks, then the frame count and playback
-length. Output is 800x600, about 50 seconds, and loops forever.
+length.
 
 ### Embedding
 
@@ -65,21 +65,31 @@ A pair covering the two halves of dynamic programming, on the same 5x5 weighted
 grid as `images/Alignment/manhattan_revisited_grid-1.png` through `-5.png` and
 `images/Alignment/backtracking.png`.
 
-**Filling in** (`manhattan_dp_fill.gif`, about 48 s). The source scores 0. The
-top row and left column have only one way in, so they fill immediately. Then
-every interior node, in row-major order, gets two beats: first both incoming
-candidates light up, blue from the left and green from above, with the two sums
-spelled out beside the grid; then the node commits to the larger, its winning
-edge keeps the color, the losing edge fades, and the score is written in. The
-tie at the fourth row, where both predecessors offer 22, is called out as a tie
-and broken horizontally to match the published figure.
+**Filling in** (`manhattan_dp_fill.gif`, about 48 s). Under the grid, the book's
+recurrence from `images/Alignment/Manhattan_recurrence33.png` is instantiated at
+whichever node is being computed, in the book's own wording and notation:
 
-**Backtracking** (`manhattan_dp_backtrack.gif`, about 20 s). Starting from the
-completed grid with only the 24 winning edges drawn, each step follows one
-node's winning edge back toward the source and turns it red, with the panel
-showing which predecessor produced that score. The last frame lays out the
-path's edge weights as `1 + 3 + 6 + 7 + 5 + 8 + 2 + 2 = 34`, which is exactly
-the score stored at the sink.
+```
+s_{2,4} = max { s_{1,4} + weight of the vertical edge from (1, 4) to (2, 4)     = 15 + 1   = 16
+              { s_{2,3} + weight of the horizontal edge from (2, 3) to (2, 4)   = 20 + 4   = 24
+```
+
+The vertical branch is green and the horizontal branch is blue, matching the two
+candidate edges highlighted in the grid. On commit the losing branch and its
+edge both fade to light gray. The source shows `s_{0,0} = 0`, and every node in
+the top row and left column shows its single-term form, so `5 = 3 + 2` and
+`9 = 5 + 4` are spelled out rather than left implicit. The tie at `s_{3,3}`,
+where both predecessors offer 22, is called out and broken horizontally to match
+the published figure.
+
+**Backtracking** (`manhattan_dp_backtrack.gif`, about 20 s). This one has no
+formula block; the picture carries it. All 40 edges stay on screen, with the 16
+edges no node chose drawn in light gray so what was discarded is still visible.
+Each step turns one kept edge red, walking back from the sink to the source. The
+caption does the explaining.
+
+Because the fill leaves its discarded edges gray, the fill's last frame and the
+backtrack's first frame show the same graph, and a check asserts they agree.
 
 The direction coding matches the rest of the chapter: blue for horizontal,
 green for vertical, red for the traced path.
@@ -91,6 +101,22 @@ python3 manhattan_dp.py backtrack ../images/Alignment/manhattan_dp_backtrack.gif
 ```
 
 Both animations share one DP table, so they cannot disagree with each other.
+
+### Suggested figure captions
+
+For pasting beside the GIFs in Cogniterra or on a course page.
+
+> **Filling in the Manhattan network.** Each node's score is the best of the ways
+> to reach it: compare the score above it plus the vertical edge weight against
+> the score to its left plus the horizontal edge weight, and keep the larger. The
+> discarded option fades to gray. Nodes in the top row and left column have only
+> one way in, so there is nothing to compare.
+
+> **Backtracking through the Manhattan network.** Every node remembers the single
+> edge it scored best from; the edges no node chose are grayed out. Starting at
+> the sink and following those remembered edges backwards recovers the
+> highest-scoring path, whose edge weights sum to the score that was already
+> waiting at the sink.
 
 ## Method
 

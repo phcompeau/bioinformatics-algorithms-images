@@ -27,6 +27,12 @@ import matplotlib.font_manager as font_manager
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
+# Render the book's s_{i,j} subscripts in Optima rather than the mathtext default.
+plt.rcParams["mathtext.fontset"] = "custom"
+plt.rcParams["mathtext.rm"] = "Optima"
+plt.rcParams["mathtext.it"] = "Optima:italic"
+plt.rcParams["mathtext.bf"] = "Optima:bold"
+
 from make_gif import assemble_gif
 
 BLUE = "#176FC1"
@@ -77,16 +83,36 @@ PUBLISHED_PATH = [
     (0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2), (4, 2), (4, 3), (4, 4),
 ]
 
-GRID_LEFT = 0.95
-GRID_TOP = 5.95
-SPACING = 1.32
-NODE_RADIUS = 0.30
-EDGE_GAP = 0.07
-WEIGHT_OFFSET = 0.23
+RENDER_DPI = 120
+OUTPUT_WIDTH = 1200
+OUTPUT_HEIGHT = 900
 
-PANEL_X = 7.15
-CAPTION_Y = 7.05
-COUNTER_Y = 6.55
+SPACING = 1.12
+NODE_RADIUS = 0.26
+# The fill needs room under the grid for the recurrence block; the backtrack has
+# no block, so its grid is recentered in the taller space.
+GRID_TOP_FILL = 6.45
+GRID_TOP_BACKTRACK = 5.80
+GRID_TOP = GRID_TOP_FILL
+GRID_LEFT = (10.0 - SPACING * (COLS - 1)) / 2
+EDGE_GAP = 0.07
+WEIGHT_OFFSET = 0.21
+
+CAPTION_Y = 7.22
+COUNTER_Y = 6.88
+
+# The recurrence sits under the grid, laid out like the book's figure:
+# "s_{i,j} = max {" then one line per incoming edge, then aligned = columns.
+PREFIX_RIGHT_X = 1.48
+BRACE_X = 1.62
+TERM_X = 1.82
+COL1_X = 6.80
+COL2_X = 7.80
+BLOCK_MIDDLE_Y = 0.80
+BLOCK_LINE_Y = [1.05, 0.55]
+PREFIX_SIZE = 13.0
+TERM_SIZE = 11.0
+COLUMN_SIZE = 12.0
 
 MOTION_MS = 110
 READING_BASE_MS = 500
@@ -307,41 +333,41 @@ def verify() -> "list[str]":
     span_x = node_xy(0, COLS - 1)[0] - node_xy(0, 0)[0]
     span_y = node_xy(0, 0)[1] - node_xy(ROWS - 1, 0)[1]
     assert SPACING > 2 * NODE_RADIUS + 0.4, "nodes too close for a weight label"
-    assert node_xy(0, 0)[0] - NODE_RADIUS > 0.3, "grid runs off the left edge"
-    assert node_xy(ROWS - 1, 0)[1] - NODE_RADIUS > 0.3, "grid runs off the bottom"
-    assert node_xy(0, COLS - 1)[0] + NODE_RADIUS < PANEL_X - 0.3, "grid collides with panel"
-    lines.append("grid spans %.2f x %.2f in, clear of the canvas edges and the panel"
+    assert node_xy(0, 0)[0] - NODE_RADIUS - WEIGHT_OFFSET > 0.3, "grid runs off the left"
+    assert node_xy(0, COLS - 1)[0] + NODE_RADIUS < 9.7, "grid runs off the right"
+    assert node_xy(0, 0)[1] + NODE_RADIUS < COUNTER_Y - 0.15, "grid collides with counter"
+    left_margin = node_xy(0, 0)[0] - NODE_RADIUS
+    right_margin = 10.0 - (node_xy(0, COLS - 1)[0] + NODE_RADIUS)
+    assert abs(left_margin - right_margin) < 0.01, "grid is not horizontally centered"
+    lines.append("grid spans %.2f x %.2f in, centered and clear of the caption"
                  % (span_x, span_y))
 
     return lines
 
 
 def draw_node(axis: "plt.Axes", row: int, col: int, label: str,
-              ring_color: str, dim: bool) -> None:
+              ring_color: str) -> None:
     """Shadowed gray lattice node with its score, per the weighted-DAG style."""
     x, y = node_xy(row, col)
-    shadow = patches.Circle((x + 0.04, y - 0.04), NODE_RADIUS, facecolor=SHADOW,
+    shadow = patches.Circle((x + 0.035, y - 0.035), NODE_RADIUS, facecolor=SHADOW,
                             edgecolor="none", zorder=4)
     axis.add_patch(shadow)
     if ring_color == "":
         outline = NODE_EDGE
-        width = 2.0
+        width = 1.9
     else:
         outline = ring_color
         width = 3.0
-    if dim:
-        outline = FADED_GRAY
-        width = 1.4
     circle = patches.Circle((x, y), NODE_RADIUS, facecolor=NODE_FILL,
                             edgecolor=outline, linewidth=width, zorder=5)
     axis.add_patch(circle)
     if label != "":
-        axis.text(x, y, label, fontsize=15, color=TEXT_DARK, ha="center",
+        axis.text(x, y, label, fontsize=13.5, color=TEXT_DARK, ha="center",
                   va="center", fontproperties=OPTIMA_BOLD, zorder=6)
 
 
 def draw_edge(axis: "plt.Axes", source: "tuple[int, int]", target: "tuple[int, int]",
-              color: str, width: float, show_weight: bool, weight_color: str) -> None:
+              color: str, width: float) -> None:
     """One lattice edge, trimmed short of both nodes, with its weight beside it."""
     ax, ay = node_xy(source[0], source[1])
     bx, by = node_xy(target[0], target[1])
@@ -351,12 +377,14 @@ def draw_edge(axis: "plt.Axes", source: "tuple[int, int]", target: "tuple[int, i
     trim = NODE_RADIUS + EDGE_GAP
     start = (ax + unit_x * trim, ay + unit_y * trim)
     end = (bx - unit_x * trim, by - unit_y * trim)
+    if color == FADED_GRAY:
+        zorder = 2
+    else:
+        zorder = 3
     arrow = patches.FancyArrowPatch(
-        start, end, arrowstyle="-|>", mutation_scale=13, linewidth=width,
-        color=color, zorder=3, joinstyle="round", capstyle="round")
+        start, end, arrowstyle="-|>", mutation_scale=12, linewidth=width,
+        color=color, zorder=zorder, joinstyle="round", capstyle="round")
     axis.add_patch(arrow)
-    if not show_weight:
-        return
     mid_x = (ax + bx) / 2
     mid_y = (ay + by) / 2
     if target[0] == source[0]:
@@ -365,43 +393,98 @@ def draw_edge(axis: "plt.Axes", source: "tuple[int, int]", target: "tuple[int, i
     else:
         label_x = mid_x - WEIGHT_OFFSET
         label_y = mid_y
-    axis.text(label_x, label_y, str(edge_weight(source, target)), fontsize=13,
-              color=weight_color, ha="center", va="center", fontproperties=OPTIMA,
-              zorder=6)
+    axis.text(label_x, label_y, str(edge_weight(source, target)), fontsize=11.5,
+              color=weight_text_color(color), ha="center", va="center",
+              fontproperties=OPTIMA, zorder=6)
+
+
+def weight_text_color(edge_color: str) -> str:
+    """Edge weights follow their edge when it is emphasized or discarded."""
+    if edge_color == EDGE_GRAY or edge_color == NODE_EDGE:
+        return TEXT_DARK
+    return edge_color
+
+
+def term_text(target: "tuple[int, int]", direction: str) -> str:
+    """The book's wording for one branch of the recurrence."""
+    came_from = predecessor(target, direction)
+    if direction == "down":
+        kind = "vertical"
+    else:
+        kind = "horizontal"
+    return (r"$s_{%d,%d}$ + weight of the %s edge from (%d, %d) to (%d, %d)"
+            % (came_from[0], came_from[1], kind, came_from[0], came_from[1],
+               target[0], target[1]))
+
+
+def term_line(target: "tuple[int, int]", direction: str, color: str) -> dict:
+    """One recurrence branch plus its two aligned numeric columns."""
+    came_from = predecessor(target, direction)
+    base = VALUES[came_from[0]][came_from[1]]
+    weight = edge_weight(came_from, target)
+    return {
+        "text": term_text(target, direction),
+        "col1": "= %d + %d" % (base, weight),
+        "col2": "= %d" % (base + weight),
+        "color": color,
+    }
+
+
+def draw_block(axis: "plt.Axes", block: dict) -> None:
+    """Render the recurrence block beneath the grid, in the book's layout."""
+    lines = block["lines"]
+    if block["prefix"] != "":
+        axis.text(PREFIX_RIGHT_X, BLOCK_MIDDLE_Y, block["prefix"],
+                  fontsize=PREFIX_SIZE, color=TEXT_DARK, ha="right", va="center",
+                  fontproperties=OPTIMA)
+    if block["brace"]:
+        axis.text(BRACE_X, BLOCK_MIDDLE_Y, "{", fontsize=38, color=TEXT_DARK,
+                  ha="center", va="center", fontproperties=OPTIMA)
+    if len(lines) == 1:
+        positions = [BLOCK_MIDDLE_Y]
+    else:
+        positions = BLOCK_LINE_Y
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        y = positions[index]
+        axis.text(TERM_X, y, line["text"], fontsize=TERM_SIZE, color=line["color"],
+                  ha="left", va="center", fontproperties=OPTIMA)
+        axis.text(COL1_X, y, line["col1"], fontsize=COLUMN_SIZE, color=line["color"],
+                  ha="left", va="center", fontproperties=OPTIMA)
+        axis.text(COL2_X, y, line["col2"], fontsize=COLUMN_SIZE, color=line["color"],
+                  ha="left", va="center", fontproperties=OPTIMA)
+        index = index + 1
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
     """Render one frame from a state dict."""
-    figure, axis = plt.subplots(figsize=(10, 7.5), dpi=100)
+    figure, axis = plt.subplots(figsize=(10, 7.5), dpi=RENDER_DPI)
     axis.set_xlim(0, 10)
     axis.set_ylim(0, 7.5)
     axis.set_aspect("equal")
     axis.axis("off")
 
-    axis.text(5.0, CAPTION_Y, spec["caption"], fontsize=17, color=TEXT_DARK,
+    axis.text(5.0, CAPTION_Y, spec["caption"], fontsize=16.5, color=TEXT_DARK,
               ha="center", va="center", fontproperties=OPTIMA_ITALIC)
-    axis.text(5.0, COUNTER_Y, spec["counter"], fontsize=14,
-              color=spec["counter_color"], ha="center", va="center",
-              fontproperties=OPTIMA)
+    if spec["counter"] != "":
+        axis.text(5.0, COUNTER_Y, spec["counter"], fontsize=13.5,
+                  color=spec["counter_color"], ha="center", va="center",
+                  fontproperties=OPTIMA)
 
-    edge_styles = spec["edge_styles"]
-    hidden = spec["hidden_edges"]
+    styles = spec["edge_styles"]
     row = 0
     while row < ROWS:
         col = 0
         while col < COLS:
             if col + 1 < COLS:
                 key = ((row, col), (row, col + 1))
-                if key not in hidden:
-                    style = edge_styles.get(key, (EDGE_GRAY, 1.6))
-                    draw_edge(axis, key[0], key[1], style[0], style[1],
-                              spec["show_weights"], weight_text_color(style[0]))
+                style = styles.get(key, (EDGE_GRAY, 1.5))
+                draw_edge(axis, key[0], key[1], style[0], style[1])
             if row + 1 < ROWS:
                 key = ((row, col), (row + 1, col))
-                if key not in hidden:
-                    style = edge_styles.get(key, (EDGE_GRAY, 1.6))
-                    draw_edge(axis, key[0], key[1], style[0], style[1],
-                              spec["show_weights"], weight_text_color(style[0]))
+                style = styles.get(key, (EDGE_GRAY, 1.5))
+                draw_edge(axis, key[0], key[1], style[0], style[1])
             col = col + 1
         row = row + 1
 
@@ -411,31 +494,14 @@ def draw_frame(spec: dict, output_path: str) -> None:
     while row < ROWS:
         col = 0
         while col < COLS:
-            label = labels.get((row, col), "")
-            ring = rings.get((row, col), "")
-            dim = (row, col) in spec["dim_nodes"]
-            draw_node(axis, row, col, label, ring, dim)
+            draw_node(axis, row, col, labels.get((row, col), ""),
+                      rings.get((row, col), ""))
             col = col + 1
         row = row + 1
 
-    line_index = 0
-    while line_index < len(spec["panel"]):
-        text, color, size = spec["panel"][line_index]
-        axis.text(PANEL_X, 5.35 - line_index * 0.46, text, fontsize=size,
-                  color=color, ha="left", va="center", fontproperties=OPTIMA)
-        line_index = line_index + 1
-
+    draw_block(axis, spec["block"])
     figure.savefig(output_path, facecolor="white")
     plt.close(figure)
-
-
-def weight_text_color(edge_color: str) -> str:
-    """Edge weights follow their edge when it is emphasized."""
-    if edge_color == EDGE_GRAY:
-        return TEXT_DARK
-    if edge_color == FADED_GRAY:
-        return FADED_GRAY
-    return edge_color
 
 
 def reading_duration(caption: str, already_seen: bool) -> int:
@@ -450,6 +516,11 @@ def reading_duration(caption: str, already_seen: bool) -> int:
     return int(round(milliseconds / 10.0) * 10)
 
 
+def empty_block() -> dict:
+    """A recurrence block with nothing in it."""
+    return {"prefix": "", "brace": False, "lines": []}
+
+
 def base_spec(caption: str, counter: str, counter_color: str, duration: int) -> dict:
     """An empty frame state with nothing emphasized yet."""
     return {
@@ -457,12 +528,9 @@ def base_spec(caption: str, counter: str, counter_color: str, duration: int) -> 
         "counter": counter,
         "counter_color": counter_color,
         "edge_styles": {},
-        "hidden_edges": set(),
         "node_labels": {},
         "node_rings": {},
-        "dim_nodes": set(),
-        "panel": [],
-        "show_weights": True,
+        "block": empty_block(),
         "duration_ms": duration,
     }
 
@@ -475,155 +543,23 @@ def labels_for(computed: "list[tuple[int, int]]") -> dict:
     return labels
 
 
-def winning_styles(computed: "list[tuple[int, int]]") -> dict:
-    """Thicken the winning incoming edge of every node computed so far."""
+def styles_for(computed: "list[tuple[int, int]]", faded: set) -> dict:
+    """Winning edges dark, discarded edges light gray."""
     styles = {}
+    for edge in faded:
+        styles[edge] = (FADED_GRAY, 1.3)
     for node in computed:
         if node == (0, 0):
             continue
         came_from = predecessor(node, CHOICE[node])
-        styles[(came_from, node)] = (NODE_EDGE, 3.0)
+        styles[(came_from, node)] = (NODE_EDGE, 2.9)
     return styles
 
 
-def build_fill_specs() -> "list[dict]":
-    """The network filling in node by node."""
-    specs = []
-    computed = []
-    seen_captions = set()
-    interior_index = 0
-
-    intro = "Every node's score is the best of the ways to reach it."
-    spec = base_spec(intro, "0 of 25 nodes scored", TEXT_DARK,
-                     reading_duration(intro, False))
-    spec["panel"] = [
-        ("The Manhattan network,", TEXT_DARK, 14),
-        ("with a weight on every edge.", TEXT_DARK, 14),
-        ("", TEXT_DARK, 14),
-        ("Find the highest-scoring", TEXT_DARK, 14),
-        ("path from corner to corner.", TEXT_DARK, 14),
-    ]
-    specs.append(spec)
-    seen_captions.add(intro)
-
-    node_index = 0
-    while node_index < len(FILL_ORDER):
-        node = FILL_ORDER[node_index]
-        row = node[0]
-        col = node[1]
-        interior = row > 0 and col > 0
-
-        if node == (0, 0):
-            caption = "The source scores 0: no edges have been taken yet."
-        elif not interior:
-            caption = "Along the top row and left column there is only one way in."
-        else:
-            caption = "Compare the two ways in, then keep the larger."
-
-        if interior:
-            from_left = VALUES[row][col - 1] + RIGHT_WEIGHTS[row][col - 1]
-            from_above = VALUES[row - 1][col] + DOWN_WEIGHTS[row - 1][col]
-            left_edge = ((row, col - 1), (row, col))
-            above_edge = ((row - 1, col), (row, col))
-
-            consider = base_spec(
-                caption, "%d of 25 nodes scored" % len(computed), TEXT_DARK,
-                scheduled_duration(interior_index, CONSIDER_SCHEDULE, CONSIDER_MS_LATE))
-            consider["node_labels"] = labels_for(computed)
-            consider["edge_styles"] = winning_styles(computed)
-            consider["edge_styles"][left_edge] = (BLUE, 3.4)
-            consider["edge_styles"][above_edge] = (GREEN, 3.4)
-            consider["node_rings"][node] = TEXT_DARK
-            consider["panel"] = [
-                ("from the left", BLUE, 14),
-                ("   %d + %d = %d" % (VALUES[row][col - 1],
-                                      RIGHT_WEIGHTS[row][col - 1], from_left), BLUE, 15),
-                ("from above", GREEN, 14),
-                ("   %d + %d = %d" % (VALUES[row - 1][col],
-                                      DOWN_WEIGHTS[row - 1][col], from_above), GREEN, 15),
-            ]
-            specs.append(consider)
-
-            if CHOICE[node] == "right":
-                winner_color = BLUE
-                winner_edge = left_edge
-                loser_edge = above_edge
-                winner_value = from_left
-                winner_word = "from the left"
-            else:
-                winner_color = GREEN
-                winner_edge = above_edge
-                loser_edge = left_edge
-                winner_value = from_above
-                winner_word = "from above"
-
-            commit = base_spec(
-                caption, "%d of 25 nodes scored" % (len(computed) + 1), TEXT_DARK,
-                scheduled_duration(interior_index, COMMIT_SCHEDULE, COMMIT_MS_LATE))
-            computed.append(node)
-            commit["node_labels"] = labels_for(computed)
-            commit["edge_styles"] = winning_styles(computed)
-            commit["edge_styles"][winner_edge] = (winner_color, 3.4)
-            commit["edge_styles"][loser_edge] = (FADED_GRAY, 1.4)
-            commit["node_rings"][node] = winner_color
-            tie_note = ""
-            if from_left == from_above:
-                tie_note = "a tie, broken horizontally"
-            commit["panel"] = [
-                ("from the left", BLUE, 14),
-                ("   %d + %d = %d" % (VALUES[row][col - 1],
-                                      RIGHT_WEIGHTS[row][col - 1], from_left), BLUE, 15),
-                ("from above", GREEN, 14),
-                ("   %d + %d = %d" % (VALUES[row - 1][col],
-                                      DOWN_WEIGHTS[row - 1][col], from_above), GREEN, 15),
-                ("", TEXT_DARK, 14),
-                ("larger is %d, %s" % (winner_value, winner_word), winner_color, 15),
-            ]
-            if tie_note != "":
-                commit["panel"].append((tie_note, TEXT_DARK, 13))
-            specs.append(commit)
-            interior_index = interior_index + 1
-        else:
-            computed.append(node)
-            if caption not in seen_captions:
-                hold = base_spec(caption, "%d of 25 nodes scored" % len(computed),
-                                 TEXT_DARK, reading_duration(caption, False))
-                hold["node_labels"] = labels_for(computed)
-                hold["edge_styles"] = winning_styles(computed)
-                hold["node_rings"][node] = TEXT_DARK
-                specs.append(hold)
-                seen_captions.add(caption)
-            else:
-                step = base_spec(caption, "%d of 25 nodes scored" % len(computed),
-                                 TEXT_DARK, INIT_MS)
-                step["node_labels"] = labels_for(computed)
-                step["edge_styles"] = winning_styles(computed)
-                step["node_rings"][node] = TEXT_DARK
-                specs.append(step)
-
-        if caption not in seen_captions:
-            seen_captions.add(caption)
-        node_index = node_index + 1
-
-    outro = "Every node scored. The sink's %d is the best possible." % VALUES[ROWS - 1][COLS - 1]
-    final = base_spec(outro, "25 of 25 nodes scored", TEXT_DARK, FINAL_HOLD_MS)
-    final["node_labels"] = labels_for(computed)
-    final["edge_styles"] = winning_styles(computed)
-    final["node_rings"][(ROWS - 1, COLS - 1)] = RED
-    final["panel"] = [
-        ("Each dark edge is the one", TEXT_DARK, 14),
-        ("its node scored best from.", TEXT_DARK, 14),
-        ("", TEXT_DARK, 14),
-        ("Follow them back from the", TEXT_DARK, 14),
-        ("sink to recover the path.", TEXT_DARK, 14),
-    ]
-    specs.append(final)
-    return specs
-
-
-def hidden_losing_edges() -> set:
-    """Every edge that no node chose, so only winning edges remain drawn."""
+def losing_edges() -> set:
+    """Every edge that no node chose."""
     winners = set()
+    losers = set()
     row = 0
     while row < ROWS:
         col = 0
@@ -633,7 +569,6 @@ def hidden_losing_edges() -> set:
                 winners.add((came_from, (row, col)))
             col = col + 1
         row = row + 1
-    hidden = set()
     row = 0
     while row < ROWS:
         col = 0
@@ -641,37 +576,181 @@ def hidden_losing_edges() -> set:
             if col + 1 < COLS:
                 key = ((row, col), (row, col + 1))
                 if key not in winners:
-                    hidden.add(key)
+                    losers.add(key)
             if row + 1 < ROWS:
                 key = ((row, col), (row + 1, col))
                 if key not in winners:
-                    hidden.add(key)
+                    losers.add(key)
             col = col + 1
         row = row + 1
-    return hidden
+    return losers
+
+
+LOSING_EDGES = losing_edges()
+
+
+def build_fill_specs() -> "list[dict]":
+    """The network filling in node by node, each step showing the recurrence."""
+    specs = []
+    computed = []
+    faded = set()
+    seen_captions = set()
+    interior_index = 0
+
+    intro = "Every node's score is the best of the ways to reach it."
+    spec = base_spec(intro, "0 of 25 nodes scored", TEXT_DARK,
+                     reading_duration(intro, False))
+    spec["block"] = {
+        "prefix": r"$s_{i,j}$ = max",
+        "brace": True,
+        "lines": [
+            {"text": r"$s_{i-1,j}$ + weight of the vertical edge into ($i$, $j$)",
+             "col1": "", "col2": "", "color": GREEN},
+            {"text": r"$s_{i,j-1}$ + weight of the horizontal edge into ($i$, $j$)",
+             "col1": "", "col2": "", "color": BLUE},
+        ],
+    }
+    specs.append(spec)
+    seen_captions.add(intro)
+
+    node_index = 0
+    while node_index < len(FILL_ORDER):
+        node = FILL_ORDER[node_index]
+        row = node[0]
+        col = node[1]
+
+        if node == (0, 0):
+            caption = "The source scores 0: no edges have been taken yet."
+            step = base_spec(caption, "1 of 25 nodes scored", TEXT_DARK,
+                             reading_duration(caption, False))
+            computed.append(node)
+            step["node_labels"] = labels_for(computed)
+            step["edge_styles"] = styles_for(computed, faded)
+            step["node_rings"][node] = TEXT_DARK
+            step["block"] = {"prefix": r"$s_{0,0}$ = 0", "brace": False, "lines": []}
+            specs.append(step)
+            seen_captions.add(caption)
+            node_index = node_index + 1
+            continue
+
+        if row == 0 or col == 0:
+            caption = "Along the top row and left column there is only one way in."
+            if row == 0:
+                direction = "right"
+                color = BLUE
+            else:
+                direction = "down"
+                color = GREEN
+            computed.append(node)
+            line = term_line(node, direction, color)
+            line["col2"] = "= %d" % VALUES[row][col]
+            if caption in seen_captions:
+                duration = INIT_MS
+            else:
+                duration = reading_duration(caption, False)
+            step = base_spec(caption, "%d of 25 nodes scored" % len(computed),
+                             TEXT_DARK, duration)
+            step["node_labels"] = labels_for(computed)
+            step["edge_styles"] = styles_for(computed, faded)
+            step["node_rings"][node] = color
+            step["block"] = {
+                "prefix": r"$s_{%d,%d}$ =" % (row, col),
+                "brace": False,
+                "lines": [line],
+            }
+            specs.append(step)
+            seen_captions.add(caption)
+            node_index = node_index + 1
+            continue
+
+        from_left = VALUES[row][col - 1] + RIGHT_WEIGHTS[row][col - 1]
+        from_above = VALUES[row - 1][col] + DOWN_WEIGHTS[row - 1][col]
+        left_edge = ((row, col - 1), (row, col))
+        above_edge = ((row - 1, col), (row, col))
+        tie = from_left == from_above
+        if tie:
+            caption = "Both ways in give the same score, so break the tie horizontally."
+        else:
+            caption = "Compare the two ways in, then keep the larger."
+
+        block = {
+            "prefix": r"$s_{%d,%d}$ = max" % (row, col),
+            "brace": True,
+            "lines": [term_line(node, "down", GREEN), term_line(node, "right", BLUE)],
+        }
+
+        consider = base_spec(
+            caption, "%d of 25 nodes scored" % len(computed), TEXT_DARK,
+            scheduled_duration(interior_index, CONSIDER_SCHEDULE, CONSIDER_MS_LATE))
+        consider["node_labels"] = labels_for(computed)
+        consider["edge_styles"] = styles_for(computed, faded)
+        consider["edge_styles"][above_edge] = (GREEN, 3.2)
+        consider["edge_styles"][left_edge] = (BLUE, 3.2)
+        consider["node_rings"][node] = TEXT_DARK
+        consider["block"] = block
+        specs.append(consider)
+
+        if CHOICE[node] == "right":
+            winner_color = BLUE
+            winner_edge = left_edge
+            loser_edge = above_edge
+            loser_position = 0
+        else:
+            winner_color = GREEN
+            winner_edge = above_edge
+            loser_edge = left_edge
+            loser_position = 1
+
+        computed.append(node)
+        faded.add(loser_edge)
+        commit = base_spec(
+            caption, "%d of 25 nodes scored" % len(computed), TEXT_DARK,
+            scheduled_duration(interior_index, COMMIT_SCHEDULE, COMMIT_MS_LATE))
+        commit["node_labels"] = labels_for(computed)
+        commit["edge_styles"] = styles_for(computed, faded)
+        commit["edge_styles"][winner_edge] = (winner_color, 3.2)
+        commit["node_rings"][node] = winner_color
+        settled = {"prefix": block["prefix"], "brace": True, "lines": []}
+        line_index = 0
+        while line_index < 2:
+            line = dict(block["lines"][line_index])
+            if line_index == loser_position:
+                line["color"] = FADED_GRAY
+            settled["lines"].append(line)
+            line_index = line_index + 1
+        commit["block"] = settled
+        specs.append(commit)
+
+        seen_captions.add(caption)
+        interior_index = interior_index + 1
+        node_index = node_index + 1
+
+    outro = "Every node scored, and the sink holds the best possible weight."
+    final = base_spec(outro, "25 of 25 nodes scored", TEXT_DARK, FINAL_HOLD_MS)
+    final["node_labels"] = labels_for(computed)
+    final["edge_styles"] = styles_for(computed, faded)
+    final["node_rings"][(ROWS - 1, COLS - 1)] = RED
+    final["block"] = {
+        "prefix": r"$s_{%d,%d}$ = %d" % (ROWS - 1, COLS - 1, VALUES[ROWS - 1][COLS - 1]),
+        "brace": False,
+        "lines": [],
+    }
+    specs.append(final)
+    return specs
 
 
 def build_backtrack_specs() -> "list[dict]":
-    """Following winning edges back from the sink to build the longest path."""
+    """Following winning edges back from the sink. The picture carries it."""
     specs = []
-    hidden = hidden_losing_edges()
     all_labels = labels_for(FILL_ORDER)
+    all_computed = list(FILL_ORDER)
     sink = (ROWS - 1, COLS - 1)
 
-    intro = "Keep only the winning edges: one into every node."
-    spec = base_spec(intro, "score at the sink: %d" % VALUES[sink[0]][sink[1]],
-                     TEXT_DARK, reading_duration(intro, False))
-    spec["hidden_edges"] = hidden
+    intro = "Each node kept one edge: the one it scored best from."
+    spec = base_spec(intro, "", TEXT_DARK, reading_duration(intro, False))
     spec["node_labels"] = all_labels
-    spec["edge_styles"] = winning_styles(FILL_ORDER)
+    spec["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
     spec["node_rings"][sink] = RED
-    spec["panel"] = [
-        ("Every node remembers the", TEXT_DARK, 14),
-        ("one edge it scored best from.", TEXT_DARK, 14),
-        ("", TEXT_DARK, 14),
-        ("Walk those edges backwards", TEXT_DARK, 14),
-        ("from the sink.", TEXT_DARK, 14),
-    ]
     specs.append(spec)
 
     traced = []
@@ -680,31 +759,19 @@ def build_backtrack_specs() -> "list[dict]":
         target = PATH[index]
         source = PATH[index - 1]
         traced.append((source, target))
-        weight = edge_weight(source, target)
-        if CHOICE[target] == "right":
-            direction_word = "from the left"
+        if index == len(PATH) - 1:
+            caption = "Start at the sink and step back along the edge it kept."
         else:
-            direction_word = "from above"
-        caption = "The sink's score came from here, so step back along that edge."
-        if index < len(PATH) - 1:
-            caption = "Each score names the edge that produced it. Step back again."
+            caption = "Keep stepping back, one kept edge at a time."
         step = base_spec(
-            caption, "score at the sink: %d" % VALUES[sink[0]][sink[1]], RED,
+            caption, "", RED,
             scheduled_duration(len(traced) - 1, BACKTRACK_SCHEDULE, BACKTRACK_MS_LATE))
-        step["hidden_edges"] = hidden
         step["node_labels"] = all_labels
-        step["edge_styles"] = winning_styles(FILL_ORDER)
+        step["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
         for edge in traced:
-            step["edge_styles"][edge] = (RED, 3.6)
+            step["edge_styles"][edge] = (RED, 3.4)
         step["node_rings"][target] = RED
         step["node_rings"][source] = RED
-        step["panel"] = [
-            ("%d %s" % (VALUES[target[0]][target[1]], direction_word), RED, 15),
-            ("   %d + %d = %d" % (VALUES[source[0]][source[1]], weight,
-                                  VALUES[target[0]][target[1]]), RED, 15),
-            ("", TEXT_DARK, 14),
-            ("%d of %d edges traced" % (len(traced), len(PATH) - 1), TEXT_DARK, 14),
-        ]
         specs.append(step)
         index = index - 1
 
@@ -713,27 +780,95 @@ def build_backtrack_specs() -> "list[dict]":
     while step_index < len(PATH) - 1:
         pieces.append(str(edge_weight(PATH[step_index], PATH[step_index + 1])))
         step_index = step_index + 1
-    sum_text = " + ".join(pieces) + " = %d" % VALUES[sink[0]][sink[1]]
-
-    outro = "The longest path, recovered backwards and read forwards."
-    final = base_spec(outro, "score at the sink: %d" % VALUES[sink[0]][sink[1]],
-                      RED, FINAL_HOLD_MS)
-    final["hidden_edges"] = hidden
+    outro = ("The longest path: " + " + ".join(pieces)
+             + " = %d, the score waiting at the sink." % VALUES[sink[0]][sink[1]])
+    final = base_spec(outro, "", RED, FINAL_HOLD_MS)
     final["node_labels"] = all_labels
-    final["edge_styles"] = winning_styles(FILL_ORDER)
+    final["edge_styles"] = styles_for(all_computed, LOSING_EDGES)
     for edge in traced:
-        final["edge_styles"][edge] = (RED, 3.6)
+        final["edge_styles"][edge] = (RED, 3.4)
     for node in PATH:
         final["node_rings"][node] = RED
-    final["panel"] = [
-        ("Edge weights along the path:", TEXT_DARK, 14),
-        (sum_text, RED, 15),
-        ("", TEXT_DARK, 14),
-        ("which is exactly the score", TEXT_DARK, 14),
-        ("stored at the sink.", TEXT_DARK, 14),
-    ]
     specs.append(final)
     return specs
+
+
+def verify_layout() -> "list[str]":
+    """Measure the widest recurrence block and assert its columns do not collide."""
+    lines = []
+    figure, axis = plt.subplots(figsize=(10, 7.5), dpi=RENDER_DPI)
+    axis.set_xlim(0, 10)
+    axis.set_ylim(0, 7.5)
+    axis.set_aspect("equal")
+    axis.axis("off")
+    widest = {
+        "prefix": r"$s_{4,4}$ = max",
+        "brace": True,
+        "lines": [term_line((4, 4), "down", GREEN), term_line((4, 4), "right", BLUE)],
+    }
+    draw_block(axis, widest)
+    figure.canvas.draw()
+    transform = axis.transData.inverted()
+    boxes = []
+    for artist in axis.texts:
+        window = artist.get_window_extent(figure.canvas.get_renderer())
+        corners = transform.transform([[window.x0, window.y0], [window.x1, window.y1]])
+        boxes.append((artist.get_text(), corners[0][0], corners[1][0],
+                      corners[0][1], corners[1][1]))
+    plt.close(figure)
+    index = 0
+    while index < len(boxes):
+        other = index + 1
+        while other < len(boxes):
+            a = boxes[index]
+            b = boxes[other]
+            overlap_x = a[1] < b[2] and b[1] < a[2]
+            overlap_y = a[3] < b[4] and b[3] < a[4]
+            assert not (overlap_x and overlap_y), (
+                "recurrence text collides: %r and %r" % (a[0][:28], b[0][:28]))
+            other = other + 1
+        index = index + 1
+    right_edge = 0.0
+    for box in boxes:
+        if box[2] > right_edge:
+            right_edge = box[2]
+    assert right_edge < 9.7, "recurrence block runs off the canvas at %.2f" % right_edge
+    lowest = 7.5
+    for box in boxes:
+        if box[3] < lowest:
+            lowest = box[3]
+    assert lowest > 0.15, "recurrence block runs off the bottom at %.2f" % lowest
+    grid_bottom = node_xy(ROWS - 1, 0)[1] - NODE_RADIUS
+    highest = 0.0
+    for box in boxes:
+        if box[4] > highest:
+            highest = box[4]
+    assert highest < grid_bottom - 0.1, (
+        "recurrence block at %.2f overlaps the grid bottom at %.2f"
+        % (highest, grid_bottom))
+    lines.append("widest recurrence block fits, no collisions, clear of the grid")
+
+    assert len(LOSING_EDGES) == 16, "expected 16 discarded edges, got %d" % len(LOSING_EDGES)
+    total_edges = ROWS * (COLS - 1) + (ROWS - 1) * COLS
+    assert len(LOSING_EDGES) + (ROWS * COLS - 1) == total_edges, (
+        "winners plus losers must account for every edge")
+    lines.append("24 kept edges plus 16 discarded edges account for all 40")
+
+    fill_specs = build_fill_specs()
+    back_specs = build_backtrack_specs()
+    fill_final = fill_specs[len(fill_specs) - 1]["edge_styles"]
+    back_first = back_specs[0]["edge_styles"]
+    fill_faded = set()
+    for edge in fill_final:
+        if fill_final[edge][0] == FADED_GRAY:
+            fill_faded.add(edge)
+    back_faded = set()
+    for edge in back_first:
+        if back_first[edge][0] == FADED_GRAY:
+            back_faded.add(edge)
+    assert fill_faded == back_faded, "the two animations disagree about discarded edges"
+    lines.append("the fill's last frame and the backtrack's first frame agree exactly")
+    return lines
 
 
 def main() -> None:
@@ -746,10 +881,13 @@ def main() -> None:
     print("Structural checks:")
     for line in verify():
         print("  ok: " + line)
+    for line in verify_layout():
+        print("  ok: " + line)
 
     if which == "fill":
         specs = build_fill_specs()
     elif which == "backtrack":
+        globals()["GRID_TOP"] = GRID_TOP_BACKTRACK
         specs = build_backtrack_specs()
     else:
         print("first argument must be fill or backtrack")
@@ -758,8 +896,8 @@ def main() -> None:
     durations = []
     for spec in specs:
         durations.append(spec["duration_ms"])
-    print("Rendering %d frames, %.1f s of playback..."
-          % (len(specs), sum(durations) / 1000.0))
+    print("Rendering %d frames at %dx%d, %.1f s of playback..."
+          % (len(specs), OUTPUT_WIDTH, OUTPUT_HEIGHT, sum(durations) / 1000.0))
     directory = tempfile.mkdtemp(prefix="manhattan_" + which + "_")
     frame_paths = []
     index = 0
@@ -769,7 +907,7 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, output_path, width=800, height=600,
+    assemble_gif(frame_paths, output_path, width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
                  frame_durations=durations)
     print("Saved " + output_path)
 
