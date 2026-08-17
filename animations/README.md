@@ -12,6 +12,8 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Leo the ant builds an Eulerian cycle (Chapter 3, Assembly) | [`images/Assembly/Leo_eulerian_cycle.gif`](../images/Assembly/Leo_eulerian_cycle.gif) | `leo_eulerian_cycle.py` |
 | Filling in the Manhattan network (Chapter 5, Alignment) | [`images/Alignment/manhattan_dp_fill.gif`](../images/Alignment/manhattan_dp_fill.gif) | `manhattan_dp.py fill` |
 | Backtracking through the Manhattan network (Chapter 5, Alignment) | [`images/Alignment/manhattan_dp_backtrack.gif`](../images/Alignment/manhattan_dp_backtrack.gif) | `manhattan_dp.py backtrack` |
+| Building the suffix trie (Chapter 9, BWT) | [`images/BWT/suffix_trie_construction.gif`](../images/BWT/suffix_trie_construction.gif) | `suffix_tree.py trie` |
+| Compressing the suffix trie into the suffix tree (Chapter 9, BWT) | [`images/BWT/suffix_tree_compression.gif`](../images/BWT/suffix_tree_compression.gif) | `suffix_tree.py compress` |
 
 `make_gif.py` is the shared frame assembler.
 
@@ -123,6 +125,52 @@ For pasting beside the GIFs in Cogniterra or on a course page.
 > the sink and following those remembered edges backwards recovers the
 > highest-scoring path. Its edge weights, 1 + 3 + 6 + 7 + 5 + 8 + 2 + 2, sum to
 > 34, which is the score that was already waiting at the sink.
+
+## The suffix trie and suffix tree
+
+A pair on `panamabananas$`, the same string as `images/BWT/suffix_trie.png` and
+`images/BWT/suffix_tree.png`. Both animations are laid out on one set of
+coordinates, so the first one ends on exactly the picture the second one starts
+from.
+
+**Building the trie** (`suffix_trie_construction.gif`, about 46 s). The 14
+suffixes are inserted longest first. For each one, the nodes that already exist
+light up blue as the suffix threads through them, then the nodes that are new
+appear one letter at a time in green, ending in a dark numbered leaf. The line
+at the bottom shows the suffix being inserted, coloured the same way: blue for
+the part that was already in the trie, green for the part being added. Nodes sit
+in their final positions from the start, so nothing jumps as the trie fills in.
+
+**Compressing to the tree** (`suffix_tree_compression.gif`, about 14 s). Every
+node on a non-branching path is marked orange, then the whole figure collapses:
+the marked nodes fade out while the letters that were separate one-character
+edge labels slide together into single stacked labels. Nothing moves sideways.
+The result is 2.4 times shorter than the trie, which is the point of the
+compression, so the empty space left at the bottom of the final frame is doing
+real work.
+
+```
+cd animations
+python3 suffix_tree.py trie     ../images/BWT/suffix_trie_construction.gif
+python3 suffix_tree.py compress ../images/BWT/suffix_tree_compression.gif
+```
+
+These render at 1100x1300, portrait, because the trie is 15 levels deep.
+
+### Suggested figure captions
+
+> **Building the suffix trie of panamabananas$.** Each of the 14 suffixes is
+> added in turn. Blue marks the path that already exists in the trie, so the new
+> suffix simply follows it; green marks the nodes that have to be created. Every
+> suffix ends at a leaf labelled with the position where that suffix starts. The
+> trie has 93 nodes, one for every distinct substring of the text.
+
+> **Compressing the suffix trie into the suffix tree.** Any node with a single
+> child carries no information: there is no choice to make there. Marked in
+> orange, those nodes disappear, and each non-branching path becomes one edge
+> whose label is the string it spelled. Only the root, the branching nodes, and
+> the leaves survive, cutting 93 nodes down to 18 and the height by more than
+> half.
 
 ## Method
 
