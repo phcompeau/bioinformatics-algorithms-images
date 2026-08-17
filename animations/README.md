@@ -10,6 +10,8 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Animation | Output | Generator |
 |---|---|---|
 | Leo the ant builds an Eulerian cycle (Chapter 3, Assembly) | [`images/Assembly/Leo_eulerian_cycle.gif`](../images/Assembly/Leo_eulerian_cycle.gif) | `leo_eulerian_cycle.py` |
+| Filling in the Manhattan network (Chapter 5, Alignment) | [`images/Alignment/manhattan_dp_fill.gif`](../images/Alignment/manhattan_dp_fill.gif) | `manhattan_dp.py fill` |
+| Backtracking through the Manhattan network (Chapter 5, Alignment) | [`images/Alignment/manhattan_dp_backtrack.gif`](../images/Alignment/manhattan_dp_backtrack.gif) | `manhattan_dp.py backtrack` |
 
 `make_gif.py` is the shared frame assembler.
 
@@ -53,6 +55,42 @@ step text or on a course page:
 ```
 https://raw.githubusercontent.com/phcompeau/bioinformatics-algorithms-images/master/images/Assembly/Leo_eulerian_cycle.gif
 ```
+
+The same pattern works for every animation in the table above: swap in the
+chapter folder and file name.
+
+## The Manhattan network
+
+A pair covering the two halves of dynamic programming, on the same 5x5 weighted
+grid as `images/Alignment/manhattan_revisited_grid-1.png` through `-5.png` and
+`images/Alignment/backtracking.png`.
+
+**Filling in** (`manhattan_dp_fill.gif`, about 48 s). The source scores 0. The
+top row and left column have only one way in, so they fill immediately. Then
+every interior node, in row-major order, gets two beats: first both incoming
+candidates light up, blue from the left and green from above, with the two sums
+spelled out beside the grid; then the node commits to the larger, its winning
+edge keeps the color, the losing edge fades, and the score is written in. The
+tie at the fourth row, where both predecessors offer 22, is called out as a tie
+and broken horizontally to match the published figure.
+
+**Backtracking** (`manhattan_dp_backtrack.gif`, about 20 s). Starting from the
+completed grid with only the 24 winning edges drawn, each step follows one
+node's winning edge back toward the source and turns it red, with the panel
+showing which predecessor produced that score. The last frame lays out the
+path's edge weights as `1 + 3 + 6 + 7 + 5 + 8 + 2 + 2 = 34`, which is exactly
+the score stored at the sink.
+
+The direction coding matches the rest of the chapter: blue for horizontal,
+green for vertical, red for the traced path.
+
+```
+cd animations
+python3 manhattan_dp.py fill      ../images/Alignment/manhattan_dp_fill.gif
+python3 manhattan_dp.py backtrack ../images/Alignment/manhattan_dp_backtrack.gif
+```
+
+Both animations share one DP table, so they cannot disagree with each other.
 
 ## Method
 
@@ -105,6 +143,12 @@ frame is. So playback time is budgeted in three separate ways:
 - **Decision points get a beat.** Where the algorithm makes a choice, here the
   ant arriving at a node and having to pick an unused edge, the frame holds
   about 300 ms. Replaying already-known territory runs faster, about 130 ms.
+
+Anything that presents new text or arithmetic counts as a caption for pacing
+purposes, including a side panel readout. Where the same kind of step repeats
+many times, the dwell can decay: the Manhattan fill gives its first few nodes
+2.2 s to establish the pattern and later ones 1.1 s, since by then the viewer
+is reading numbers rather than learning a procedure.
 
 Holds are nearly free in file size, because identical consecutive frames
 collapse into a single frame with the summed delay. Being generous with
