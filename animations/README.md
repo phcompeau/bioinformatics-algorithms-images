@@ -20,6 +20,11 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Building the suffix array (Chapter 9, BWT) | [`images/BWT/suffix_array_construction.gif`](../images/BWT/suffix_array_construction.gif) | `suffix_array.py` |
 | UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py` |
 | Neighbor-joining (Chapter 7, Evolution) | [`images/Evolution/neighbor_joining.gif`](../images/Evolution/neighbor_joining.gif) | `neighbor_joining.py` |
+| Backward search with the BWT (Chapter 9, BWT) | [`images/BWT/bwt_pattern_matching.gif`](../images/BWT/bwt_pattern_matching.gif) | `bwt_pattern_matching.py` |
+| 2-break sorting on the breakpoint graph (Chapter 6, Rearrangements) | [`images/Rearrangements/breakpoint_graph_2break.gif`](../images/Rearrangements/breakpoint_graph_2break.gif) | `breakpoint_graph.py` |
+| Small parsimony (Chapter 7, Evolution) | [`images/Evolution/small_parsimony.gif`](../images/Evolution/small_parsimony.gif) | `small_parsimony.py` |
+| Greedy motif search (Chapter 2, Motifs) | [`images/Motifs/greedy_motif_search.gif`](../images/Motifs/greedy_motif_search.gif) | `greedy_motif_search.py` |
+| Linear-space alignment by middle nodes (Chapter 5, Alignment) | [`images/Alignment/middle_node_alignment.gif`](../images/Alignment/middle_node_alignment.gif) | `middle_node.py` |
 
 `make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
 palette, fonts, and easing shared by the lecture-styled animations.
@@ -324,6 +329,87 @@ python3 neighbor_joining.py ../images/Evolution/neighbor_joining.gif
 > identifies a true pair of neighbors. Joining them, splitting their distance, and
 > recursing on a smaller matrix reconstructs the tree, which for an additive
 > matrix reproduces every original distance exactly.
+
+## Five more, with the text kept to a minimum
+
+These carry no explanation in the frame at all beyond the data itself. The
+explanations live in the suggested captions below.
+
+**Backward search** (`bwt_pattern_matching.gif`, 22 s). Only the first and last
+columns are known; the rest of each row is a row of question marks. Matching
+`ana` right to left, the rows whose last column carries the next symbol turn red,
+and the first-last property maps them onto a contiguous band. Three steps leave a
+band of three rows, and the suffix array turns those into positions 1, 7 and 9.
+Checked by asserting each band holds exactly the rows starting with the matched
+suffix, and that the positions agree with a brute-force scan of the text.
+
+**2-break sorting** (`breakpoint_graph_2break.gif`, 18 s). Genome P's adjacencies
+in red and Q's in blue on the same block ends, so every node has one edge of each
+colour and the graph splits into alternating cycles. Each 2-break swaps two red
+edges for two others on the same four ends and splits a cycle; the number at the
+bottom is the cycle count. Checked by asserting the graph is 2-regular in each
+colour, every 2-break raises the count by exactly one, the number of 2-breaks
+equals blocks minus starting cycles, and P finishes identical to Q.
+
+**Small parsimony** (`small_parsimony.gif`, 23 s). The four species from slide 179
+on the same tree. Each alignment column is solved independently, so the internal
+strings fill in left to right with the live column in red while each edge's
+mismatch count and the running total climb. Every column's score is checked
+against a brute-force search over all 64 assignments to the three internal nodes.
+The optimum turns out to be 8, so the assignment printed on the slide was already
+optimal.
+
+**Greedy motif search** (`greedy_motif_search.gif`, 38 s). The three strings from
+slide 160 with k = 3. Each k-mer of the first string seeds a round: build a
+profile with pseudocounts, take the profile-most-probable k-mer in each remaining
+string, and keep the best-scoring collection. The two numbers are this round's
+score and the best so far, and the round's score flashes green when it improves.
+Checked by asserting each profile is a real distribution, each pick genuinely
+maximises probability, the best score never worsens, and greedy never beats a
+brute-force search over all 125 combinations. Here it ties it at 0.
+
+**Linear-space alignment** (`middle_node_alignment.gif`, 20 s). Instead of storing
+the whole table, sweep the middle column of a rectangle to find the one node where
+an optimal path crosses it, then recurse on the two rectangles either side. The
+green bands are the columns being swept; the red dots are the middle nodes that
+survive. The strongest check here: the path assembled from the middle nodes alone
+must score exactly what a full table says the optimum is, which it does at 3.
+
+The two halves of each rectangle deliberately **share** the middle column. Making
+the right half start one column later, which looks like the obvious way to avoid
+overlap, breaks the property that makes the whole decomposition optimal, and the
+assembled path silently drops to a worse score.
+
+### Suggested figure captions
+
+> **Backward search with the Burrows-Wheeler transform.** Only the first and last
+> columns of the matrix are needed. Reading the pattern right to left, the rows
+> whose last column carries the next symbol always map to a single block of
+> consecutive rows, so the search narrows to a band rather than a scattered set.
+> When the pattern runs out, the band holds every occurrence.
+
+> **Sorting a genome by 2-breaks.** Drawing one genome's adjacencies in red and
+> the other's in blue makes the graph split into alternating cycles, and the more
+> cycles there are the more alike the genomes. Every 2-break can add at most one
+> cycle, so transforming one genome into the other takes at least blocks minus
+> cycles operations, and that many always suffice.
+
+> **Small parsimony.** Because the tree is scored column by column, each position
+> of the alignment can be solved on its own by dynamic programming. Filling the
+> internal nodes one column at a time builds the most parsimonious ancestral
+> sequences, and the mismatch counts along the edges accumulate into the total
+> parsimony score.
+
+> **Greedy motif search.** Each k-mer of the first string is tried as a seed. Its
+> profile, softened by pseudocounts so no probability is ever zero, picks the most
+> probable k-mer from the next string, and so on down the collection. The best
+> scoring collection found this way is kept. It is a heuristic: it can miss the
+> optimum, though on this small example it finds it.
+
+> **Linear-space alignment.** The full dynamic-programming table needs quadratic
+> memory, but finding where an optimal path crosses a single middle column needs
+> only linear memory. Recursing on the rectangles either side pins down one node
+> per column, and those nodes alone reconstruct the optimal alignment.
 
 ## Method
 
