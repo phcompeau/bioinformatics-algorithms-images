@@ -23,7 +23,6 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Backward search with the BWT (Chapter 9, BWT) | [`images/BWT/bwt_pattern_matching.gif`](../images/BWT/bwt_pattern_matching.gif) | `bwt_pattern_matching.py` |
 | 2-break sorting on the breakpoint graph (Chapter 6, Rearrangements) | [`images/Rearrangements/breakpoint_graph_2break.gif`](../images/Rearrangements/breakpoint_graph_2break.gif) | `breakpoint_graph.py` |
 | Small parsimony (Chapter 7, Evolution) | [`images/Evolution/small_parsimony.gif`](../images/Evolution/small_parsimony.gif) | `small_parsimony.py` |
-| Greedy motif search (Chapter 2, Motifs) | [`images/Motifs/greedy_motif_search.gif`](../images/Motifs/greedy_motif_search.gif) | `greedy_motif_search.py` |
 | Linear-space alignment by middle nodes (Chapter 5, Alignment) | [`images/Alignment/middle_node_alignment.gif`](../images/Alignment/middle_node_alignment.gif) | `middle_node.py` |
 
 `make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
@@ -359,15 +358,6 @@ against a brute-force search over all 64 assignments to the three internal nodes
 The optimum turns out to be 8, so the assignment printed on the slide was already
 optimal.
 
-**Greedy motif search** (`greedy_motif_search.gif`, 38 s). The three strings from
-slide 160 with k = 3. Each k-mer of the first string seeds a round: build a
-profile with pseudocounts, take the profile-most-probable k-mer in each remaining
-string, and keep the best-scoring collection. The two numbers are this round's
-score and the best so far, and the round's score flashes green when it improves.
-Checked by asserting each profile is a real distribution, each pick genuinely
-maximises probability, the best score never worsens, and greedy never beats a
-brute-force search over all 125 combinations. Here it ties it at 0.
-
 **Linear-space alignment** (`middle_node_alignment.gif`, 20 s). Instead of storing
 the whole table, sweep the middle column of a rectangle to find the one node where
 an optimal path crosses it, then recurse on the two rectangles either side. The
@@ -399,12 +389,6 @@ assembled path silently drops to a worse score.
 > internal nodes one column at a time builds the most parsimonious ancestral
 > sequences, and the mismatch counts along the edges accumulate into the total
 > parsimony score.
-
-> **Greedy motif search.** Each k-mer of the first string is tried as a seed. Its
-> profile, softened by pseudocounts so no probability is ever zero, picks the most
-> probable k-mer from the next string, and so on down the collection. The best
-> scoring collection found this way is kept. It is a heuristic: it can miss the
-> optimum, though on this small example it finds it.
 
 > **Linear-space alignment.** The full dynamic-programming table needs quadratic
 > memory, but finding where an optimal path crosses a single middle column needs
