@@ -14,6 +14,7 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Backtracking through the Manhattan network (Chapter 5, Alignment) | [`images/Alignment/manhattan_dp_backtrack.gif`](../images/Alignment/manhattan_dp_backtrack.gif) | `manhattan_dp.py backtrack` |
 | Building the suffix trie (Chapter 9, BWT) | [`images/BWT/suffix_trie_construction.gif`](../images/BWT/suffix_trie_construction.gif) | `suffix_tree.py trie` |
 | Compressing the suffix trie into the suffix tree (Chapter 9, BWT) | [`images/BWT/suffix_tree_compression.gif`](../images/BWT/suffix_tree_compression.gif) | `suffix_tree.py compress` |
+| Building the Burrows-Wheeler transform (Chapter 9, BWT) | [`images/BWT/bwt_construction.gif`](../images/BWT/bwt_construction.gif) | `bwt_construction.py` |
 
 `make_gif.py` is the shared frame assembler.
 
@@ -186,6 +187,36 @@ These render at 1100x1300, portrait, because the trie is 15 levels deep.
 > whose label is the string it spelled. Only the root, the branching nodes, and
 > the leaves survive, cutting 93 nodes down to 18 and the height by more than
 > half.
+
+## The Burrows-Wheeler transform
+
+`bwt_construction.gif`, about 25 s, following 02-180 Lecture 5 slides 292-309.
+The 14 cyclic rotations of `panamabananas$` appear one at a time, sort into
+place, and then the last column lifts out in bold as the rest of the matrix dims,
+spelling `BWT(Text)` along the bottom.
+
+Rows cross each other while sorting, so each row fades while it is in flight and
+sharpens again once it lands; at full opacity the moving rows pile into an
+illegible smear. The stagger sends them in a wave rather than all at once.
+
+```
+cd animations
+python3 bwt_construction.py ../images/BWT/bwt_construction.gif
+```
+
+Two independent checks: the computed transform must equal `smnpbnnaaaaa$a`, the
+answer printed on the slide, and inverting the transform through the
+last-to-first property must reproduce `panamabananas$` exactly. The inverter
+found a real bug the first time: the walk recovers a *cyclic* string, so it has
+to be rotated to put the sentinel last.
+
+### Suggested figure caption
+
+> **Building the Burrows-Wheeler transform.** Write down every cyclic rotation of
+> the text, sort them lexicographically, and read off the last column. That
+> column, `smnpbnnaaaaa$a`, is the Burrows-Wheeler transform. Nothing has been
+> lost: the sorted matrix can be rebuilt from this one column, so the transform
+> can be inverted back to the original text.
 
 ## Method
 
