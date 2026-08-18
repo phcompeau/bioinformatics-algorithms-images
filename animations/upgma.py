@@ -35,6 +35,13 @@ from make_gif import assemble_transparent_gif
 # Both matrices are transcribed from the tables in Evolutionary_Trees.pptx:
 # slide 110 for the walkthrough, slide 121 for the quiz. PUBLISHED lists every
 # age and limb length printed beside the finished tree.
+# The book prints node ages in this red, and names the four species v1..v4
+# (sampled and read off images/Evolution/UPGMA.png, the figure these sit beside).
+# Cluster names are built by concatenating the single-character keys, so the keys
+# stay i j k l internally and only the labels change.
+BOOK_RED = "#C80000"
+LABEL_OF = {"i": "v1", "j": "v2", "k": "v3", "l": "v4"}
+
 EXAMPLES = {
     "basic": {
         "leaves": ["i", "j", "k", "l"],
@@ -368,9 +375,12 @@ def base_frame(duration: int) -> dict:
 
 
 def display_name(name: str) -> str:
-    if len(name) == 1:
-        return name
-    return "{%s}" % ",".join(leaves_of(name))
+    labels = []
+    for character in leaves_of(name):
+        labels.append(LABEL_OF[character])
+    if len(labels) == 1:
+        return labels[0]
+    return "{%s}" % ",".join(labels)
 
 
 def build_specs() -> "list[dict]":
@@ -597,7 +607,7 @@ def draw_frame(spec: dict, output_path: str) -> None:
             axis.plot([xs[0], xs[1]], [parent_y, parent_y], color=INK,
                       linewidth=1.8, solid_capstyle="round", zorder=4)
             axis.text(centre_x, parent_y - 0.15, "%g" % step["age"],
-                      fontsize=LIMB_SIZE, color=DIM, ha="center", va="top",
+                      fontsize=LIMB_SIZE, color=BOOK_RED, ha="center", va="top",
                       fontproperties=MONO, zorder=6)
         index = index + 1
 
@@ -607,8 +617,8 @@ def draw_frame(spec: dict, output_path: str) -> None:
         disc = patches.Circle((x, y), LEAF_RADIUS, facecolor=DISC,
                               edgecolor="none", zorder=5)
         axis.add_patch(disc)
-        axis.text(x, y, leaf, fontsize=LEAF_SIZE, color="white", ha="center",
-                  va="center", fontproperties=OPTIMA_ITALIC, zorder=6)
+        axis.text(x, y, LABEL_OF[leaf], fontsize=LEAF_SIZE - 1, color="white",
+                  ha="center", va="center", fontproperties=OPTIMA_ITALIC, zorder=6)
 
     if spec["work"] is not None:
         draw_work(axis, figure, spec["work"], spec["trap"])
