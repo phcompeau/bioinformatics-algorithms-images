@@ -19,6 +19,7 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | BWT decompression by the last-to-first property (Chapter 9, BWT) | [`images/BWT/bwt_last_to_first.gif`](../images/BWT/bwt_last_to_first.gif) | `bwt_last_to_first.py` |
 | Building the suffix array (Chapter 9, BWT) | [`images/BWT/suffix_array_construction.gif`](../images/BWT/suffix_array_construction.gif) | `suffix_array.py` |
 | UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py` |
+| Neighbor-joining (Chapter 7, Evolution) | [`images/Evolution/neighbor_joining.gif`](../images/Evolution/neighbor_joining.gif) | `neighbor_joining.py` |
 
 `make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
 palette, fonts, and easing shared by the lecture-styled animations.
@@ -293,6 +294,36 @@ ultrametric, which is the property UPGMA guarantees.
 > new common ancestor at half their distance, and replace them in the matrix with
 > a weighted average of their distances to everything else. The tree that results
 > is ultrametric: every leaf sits the same distance from the root.
+
+## Neighbor-joining
+
+`neighbor_joining.gif`, about 25 s, following Evolutionary_Trees.pptx slides
+145-171. Build the neighbor-joining matrix from D and its row totals, join the
+pair with the smallest entry, split their shared distance using the total-distance
+difference, replace them with a new node, and recurse. With three taxa left every
+entry of D* ties, which is the base case the deck flags as "they're all
+neighbors". The last frame brings D back so the finished tree can be checked
+against it by eye.
+
+The deck shows D as a picture, but its `TotalDistance` column is text, and that
+column pins the matrix down uniquely; the recovered matrix is then confirmed by
+reproducing all sixteen entries of the printed D*. Limb lengths are asserted
+against slide 171, and the finished tree is asserted to reproduce every distance
+in D, which is what additivity means.
+
+```
+cd animations
+python3 neighbor_joining.py ../images/Evolution/neighbor_joining.gif
+```
+
+### Suggested figure caption
+
+> **Neighbor-joining.** The raw distance matrix can mislead: the closest two
+> species need not be neighbors in the tree. Subtracting each row's total distance
+> corrects for that, and the smallest entry of the resulting matrix D* always
+> identifies a true pair of neighbors. Joining them, splitting their distance, and
+> recursing on a smaller matrix reconstructs the tree, which for an additive
+> matrix reproduces every original distance exactly.
 
 ## Method
 
