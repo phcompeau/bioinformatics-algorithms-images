@@ -7,17 +7,17 @@ of starting positions left behind is the suffix array.
 The suffix array is computed from the text and asserted against the leaf order
 of the suffix tree, which was itself verified against the published figure.
 
-Run:  python3 suffix_array.py OUTPUT.gif
+Run:  python3 example_suffix_array.py OUTPUT.gif
 """
 
 import os
 import sys
 import tempfile
 
-from lecture_style import (BACKGROUND, DIM, DISC, INK, MONO, MONO_BOLD,
-                           OPTIMA_ITALIC, ease, new_axes, sort_permutation,
-                           staggered_progress, transit_alpha)
-from make_gif import assemble_gif
+from lecture_style import (BACKGROUND, BLUE, DIM, DISC, FAINT, INK, MONO,
+                           MONO_BOLD, OPTIMA_ITALIC, ease, new_axes,
+                           sort_permutation, staggered_progress, transit_alpha)
+from make_gif import assemble_transparent_gif
 
 TEXT = "panamabananas$"
 
@@ -26,22 +26,30 @@ TEXT = "panamabananas$"
 PUBLISHED_ARRAY = [13, 5, 3, 1, 7, 9, 11, 6, 4, 2, 8, 10, 0, 12]
 
 FIGURE_WIDTH = 9.4
-FIGURE_HEIGHT = 6.2
+FIGURE_HEIGHT = 7.0
 RENDER_DPI = 140
 OUTPUT_WIDTH = 1316
-OUTPUT_HEIGHT = 868
+OUTPUT_HEIGHT = 980
 
 CHAR_ADVANCE = 0.205
 ROW_HEIGHT = 0.305
 CHAR_SIZE = 20.0
-MATRIX_TOP = 5.30
+MATRIX_TOP = 6.10
 INDEX_GAP = 0.62
 DISC_RADIUS = 0.145
 INDEX_SIZE = 12.0
 LABEL_SIZE = 15.0
-CAPTION_Y = 5.78
-READOUT_Y = 0.62
+CAPTION_Y = 6.60
+# Three lines under the block: the text itself, a ruler of positions beneath it,
+# and the suffix array being read off. The ruler is what turns the array from a
+# list of numbers into a set of places inside the text.
+GHOST = "#DCD6C8"
+TEXT_ADVANCE = 0.30
+TEXT_Y = 1.44
+RULER_Y = 1.06
+READOUT_Y = 0.50
 READOUT_SIZE = 17.0
+RULER_SIZE = 11.0
 
 REVEAL_MS = 330
 REVEAL_HOLD_MS = 2200
@@ -49,8 +57,15 @@ SORT_FRAMES = 40
 SORT_STAGGER = 0.55
 SORT_MS = 120
 SORT_HOLD_MS = 2400
-PICK_MS = 260
-FINAL_HOLD_MS = 5000
+# The proof that the sort is right: each adjacent pair only has to be compared as
+# far as the first place they differ.
+PAIR_MS = 900
+PAIR_INTRO_MS = 2600
+MINIMAL_HOLD_MS = 4200
+# Phillip: the hand-off to "these are the suffix array" went by too fast.
+PICK_INTRO_MS = 2400
+PICK_MS = 700
+FINAL_HOLD_MS = 5600
 
 
 def suffixes() -> "list[str]":
@@ -75,6 +90,58 @@ def suffix_array() -> "list[int]":
 
 
 ARRAY = suffix_array()
+
+
+def common_prefix_length(first: str, second: str) -> int:
+    """How far two strings agree before they first differ."""
+    shared = 0
+    while shared < len(first) and shared < len(second):
+        if first[shared] != second[shared]:
+            return shared
+        shared = shared + 1
+    return shared
+
+
+def adjacent_prefixes() -> "list[int]":
+    """For each sorted neighbour pair, how many characters settle the comparison.
+
+    The pair is decided at the first position where the two suffixes differ, so
+    everything past that position is irrelevant to the sort. This is what the
+    animation shows: the order is already proved by a handful of letters.
+    """
+    result = [0]
+    slot = 1
+    while slot < len(ARRAY):
+        upper = SUFFIXES[ARRAY[slot - 1]]
+        lower = SUFFIXES[ARRAY[slot]]
+        result.append(common_prefix_length(upper, lower) + 1)
+        slot = slot + 1
+    return result
+
+
+DECIDING = adjacent_prefixes()
+
+
+def minimal_prefixes() -> dict:
+    """rows -> how many characters that row needs to hold its place in the sort.
+
+    A row is pinned by both of its neighbours, so it needs whichever comparison
+    reaches deeper.
+    """
+    result = {}
+    slot = 0
+    while slot < len(ARRAY):
+        needed = 1
+        if slot > 0 and DECIDING[slot] > needed:
+            needed = DECIDING[slot]
+        if slot + 1 < len(ARRAY) and DECIDING[slot + 1] > needed:
+            needed = DECIDING[slot + 1]
+        result[ARRAY[slot]] = needed
+        slot = slot + 1
+    return result
+
+
+MINIMAL = minimal_prefixes()
 
 
 def verify() -> "list[str]":
@@ -106,6 +173,32 @@ def verify() -> "list[str]":
     assert ARRAY[0] == size - 1, "the sentinel suffix must sort first"
     lines.append("the lone $ suffix sorts to the top")
 
+    # The minimal prefixes must really be enough: truncating every suffix to its
+    # own minimal prefix has to leave the rows in the same order.
+    slot = 1
+    while slot < size:
+        upper = SUFFIXES[ARRAY[slot - 1]]
+        lower = SUFFIXES[ARRAY[slot]]
+        depth = DECIDING[slot]
+        assert upper[0:depth - 1] == lower[0:depth - 1], (
+            "rows %d and %d were said to agree for %d characters" % (slot - 1, slot, depth - 1))
+        assert upper[depth - 1] < lower[depth - 1], (
+            "rows %d and %d are not decided at character %d" % (slot - 1, slot, depth))
+        assert upper[0:MINIMAL[ARRAY[slot - 1]]] < lower[0:MINIMAL[ARRAY[slot]]], (
+            "the minimal prefixes of rows %d and %d do not preserve the order"
+            % (slot - 1, slot))
+        slot = slot + 1
+    deepest = 0
+    for row in MINIMAL:
+        if MINIMAL[row] > deepest:
+            deepest = MINIMAL[row]
+    total_shown = 0
+    for row in MINIMAL:
+        total_shown = total_shown + MINIMAL[row]
+    lines.append("the sort is settled by %d of the %d characters on screen, "
+                 "at most %d in any row"
+                 % (total_shown, size * (size + 1) // 2, deepest))
+
     widest = 0
     for suffix in SUFFIXES:
         if len(suffix) > widest:
@@ -113,9 +206,11 @@ def verify() -> "list[str]":
     total = INDEX_GAP + widest * CHAR_ADVANCE
     assert total < FIGURE_WIDTH - 1.0, "matrix too wide for the canvas"
     lowest = MATRIX_TOP - (size - 1) * ROW_HEIGHT
-    assert lowest - DISC_RADIUS > READOUT_Y + 0.35, "matrix collides with the readout"
+    assert lowest - DISC_RADIUS > TEXT_Y + 0.30, "matrix collides with the text below it"
+    assert TEXT_Y > RULER_Y + 0.25, "the ruler collides with the text"
+    assert RULER_Y > READOUT_Y + 0.30, "the ruler collides with the suffix array"
     assert MATRIX_TOP + 0.25 < CAPTION_Y, "matrix collides with the caption"
-    lines.append("block is %.2f x %.2f in, clear of the caption and readout"
+    lines.append("block is %.2f x %.2f in, clear of the caption, the text and the array"
                  % (total, (size - 1) * ROW_HEIGHT))
     return lines
 
@@ -137,7 +232,8 @@ def row_y(slot: float) -> float:
 
 def base_frame(duration: int) -> dict:
     return {"revealed": 0, "slots": {}, "alphas": {}, "picked": 0,
-            "dim_text": False, "caption": "", "duration_ms": duration}
+            "dim_text": False, "caption": "", "prefix_limit": {}, "mark": {},
+            "focus": None, "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
@@ -196,6 +292,36 @@ def build_specs() -> "list[dict]":
     settled["caption"] = "Sort the suffixes"
     specs.append(settled)
 
+    # Why the order is right: walk the neighbours and show that each pair is
+    # already decided at the first letter where the two suffixes differ.
+    slot = 1
+    while slot < size:
+        upper = ARRAY[slot - 1]
+        lower = ARRAY[slot]
+        frame = base_frame(PAIR_MS)
+        frame["revealed"] = size
+        frame["slots"] = dict(sorted_slots)
+        frame["focus"] = set([upper, lower])
+        frame["prefix_limit"] = {upper: DECIDING[slot], lower: DECIDING[slot]}
+        frame["mark"] = {upper: DECIDING[slot] - 1, lower: DECIDING[slot] - 1}
+        frame["caption"] = "Each pair is settled at the first letter where they differ"
+        specs.append(frame)
+        slot = slot + 1
+
+    minimal = base_frame(MINIMAL_HOLD_MS)
+    minimal["revealed"] = size
+    minimal["slots"] = dict(sorted_slots)
+    minimal["prefix_limit"] = dict(MINIMAL)
+    minimal["caption"] = "These few letters already prove the whole order"
+    specs.append(minimal)
+
+    hand_off = base_frame(PICK_INTRO_MS)
+    hand_off["revealed"] = size
+    hand_off["slots"] = dict(sorted_slots)
+    hand_off["dim_text"] = True
+    hand_off["caption"] = "The starting positions are the suffix array"
+    specs.append(hand_off)
+
     pick = 1
     while pick <= size:
         frame = base_frame(PICK_MS)
@@ -249,11 +375,21 @@ def draw_frame(spec: dict, output_path: str) -> None:
             text_colour = DIM
         else:
             text_colour = INK
+        dulled = spec["focus"] is not None and row not in spec["focus"]
+        limit = spec["prefix_limit"].get(row, -1)
+        marked = spec["mark"].get(row, -1)
         suffix = SUFFIXES[row]
         column = 0
         while column < len(suffix):
+            colour = text_colour
+            if dulled:
+                colour = GHOST
+            elif limit >= 0 and column >= limit:
+                colour = FAINT
+            if column == marked and not dulled:
+                colour = BLUE
             axis.text(LEFT + INDEX_GAP + (column + 0.5) * CHAR_ADVANCE, y,
-                      suffix[column], fontsize=CHAR_SIZE, color=text_colour,
+                      suffix[column], fontsize=CHAR_SIZE, color=colour,
                       ha="center", va="center", fontproperties=MONO, zorder=5,
                       alpha=alpha)
             column = column + 1
@@ -264,23 +400,52 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   color=INK, ha="center", va="center", fontproperties=OPTIMA_ITALIC,
                   zorder=7)
 
+    # The text with a ruler of positions under it, so the numbers being read off
+    # the block are visibly places inside panamabananas$ rather than bare digits.
+    taken = set()
+    index = 0
+    while index < spec["picked"]:
+        taken.add(ARRAY[index])
+        index = index + 1
+    current = -1
+    if spec["picked"] > 0:
+        current = ARRAY[spec["picked"] - 1]
+    text_left = (FIGURE_WIDTH - len(TEXT) * TEXT_ADVANCE) / 2
+    position = 0
+    while position < len(TEXT):
+        x = text_left + (position + 0.5) * TEXT_ADVANCE
+        if position == current:
+            letter_colour = BLUE
+            ruler_colour = BLUE
+        elif position in taken:
+            letter_colour = INK
+            ruler_colour = DISC
+        else:
+            letter_colour = DIM
+            ruler_colour = FAINT
+        axis.text(x, TEXT_Y, TEXT[position], fontsize=CHAR_SIZE, color=letter_colour,
+                  ha="center", va="center", fontproperties=MONO_BOLD, zorder=7)
+        axis.text(x, RULER_Y, str(position), fontsize=RULER_SIZE, color=ruler_colour,
+                  ha="center", va="center", fontproperties=MONO, zorder=7)
+        position = position + 1
+
     if spec["picked"] > 0:
         shown = []
-        taken = 0
-        while taken < spec["picked"]:
-            shown.append(str(ARRAY[taken]))
-            taken = taken + 1
+        index = 0
+        while index < spec["picked"]:
+            shown.append(str(ARRAY[index]))
+            index = index + 1
         axis.text(FIGURE_WIDTH / 2, READOUT_Y, " ".join(shown), fontsize=READOUT_SIZE,
                   color=INK, ha="center", va="center", fontproperties=MONO_BOLD,
                   zorder=7)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: suffix_array.py OUTPUT.gif")
+        print("usage: example_suffix_array.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -301,8 +466,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

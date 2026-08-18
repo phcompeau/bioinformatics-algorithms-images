@@ -8,7 +8,7 @@ last column lifts out as BWT(Text).
 The transform is computed from the text and asserted against the published
 answer, and additionally checked by inverting it back to the original text.
 
-Run:  python3 bwt_construction.py OUTPUT.gif
+Run:  python3 example_bwt.py OUTPUT.gif
 """
 
 import math
@@ -21,11 +21,13 @@ matplotlib.use("Agg")
 import matplotlib.font_manager as font_manager
 import matplotlib.pyplot as plt
 
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 BACKGROUND = "#EEE9DF"
 INK = "#1A1A1A"
 DIM = "#9A958C"
+FAINT = "#CFC9BC"
+GHOST = "#DCD6C8"
 BLUE = "#176FC1"
 RED = "#ED1C24"
 
@@ -56,7 +58,12 @@ SORT_FRAMES = 40
 SORT_STAGGER = 0.55
 SORT_MS = 120
 SORT_HOLD_MS = 2600
-COLUMN_MS = 260
+# The proof that the sort is right: each neighbouring pair is decided at the
+# first position where the two rotations differ.
+PAIR_MS = 900
+MINIMAL_HOLD_MS = 4200
+COLUMN_INTRO_MS = 2200
+COLUMN_MS = 420
 FINAL_HOLD_MS = 5000
 
 
@@ -180,6 +187,29 @@ def verify() -> "list[str]":
     assert ROTATIONS[ORDER[0]] == "$" + TEXT[0:size - 1], "row 0 must start with $"
     lines.append("the $ rotation sorts to the top, as the slide shows")
 
+    slot = 1
+    while slot < size:
+        upper = ROTATIONS[ORDER[slot - 1]]
+        lower = ROTATIONS[ORDER[slot]]
+        depth = DECIDING[slot]
+        assert upper[0:depth - 1] == lower[0:depth - 1], (
+            "rows %d and %d were said to agree for %d characters"
+            % (slot - 1, slot, depth - 1))
+        assert upper[depth - 1] < lower[depth - 1], (
+            "rows %d and %d are not decided at character %d" % (slot - 1, slot, depth))
+        assert upper[0:MINIMAL[ORDER[slot - 1]]] < lower[0:MINIMAL[ORDER[slot]]], (
+            "the minimal prefixes of rows %d and %d do not preserve the order"
+            % (slot - 1, slot))
+        slot = slot + 1
+    total_shown = 0
+    deepest = 0
+    for row in MINIMAL:
+        total_shown = total_shown + MINIMAL[row]
+        if MINIMAL[row] > deepest:
+            deepest = MINIMAL[row]
+    lines.append("the sort is settled by %d of the %d characters in the block, "
+                 "at most %d in any row" % (total_shown, size * size, deepest))
+
     recovered = invert_bwt(BWT)
     assert recovered == TEXT, (
         "inverting the transform gave %r, not the original text" % recovered)
@@ -193,6 +223,49 @@ def verify() -> "list[str]":
     lines.append("matrix is %.2f x %.2f in, clear of the caption and readout"
                  % (matrix_width, (size - 1) * ROW_HEIGHT))
     return lines
+
+
+def common_prefix_length(first: str, second: str) -> int:
+    """How far two strings agree before they first differ."""
+    shared = 0
+    while shared < len(first) and shared < len(second):
+        if first[shared] != second[shared]:
+            return shared
+        shared = shared + 1
+    return shared
+
+
+def adjacent_prefixes() -> "list[int]":
+    """How many characters settle each neighbouring pair in the sorted block."""
+    result = [0]
+    slot = 1
+    while slot < len(ORDER):
+        upper = ROTATIONS[ORDER[slot - 1]]
+        lower = ROTATIONS[ORDER[slot]]
+        result.append(common_prefix_length(upper, lower) + 1)
+        slot = slot + 1
+    return result
+
+
+DECIDING = adjacent_prefixes()
+
+
+def minimal_prefixes() -> dict:
+    """row -> how many characters that row needs to hold its place in the sort."""
+    result = {}
+    slot = 0
+    while slot < len(ORDER):
+        needed = 1
+        if slot > 0 and DECIDING[slot] > needed:
+            needed = DECIDING[slot]
+        if slot + 1 < len(ORDER) and DECIDING[slot + 1] > needed:
+            needed = DECIDING[slot + 1]
+        result[ORDER[slot]] = needed
+        slot = slot + 1
+    return result
+
+
+MINIMAL = minimal_prefixes()
 
 
 def matrix_left() -> float:
@@ -229,8 +302,8 @@ def new_axes() -> "tuple":
 
 def base_frame(duration: int) -> dict:
     return {"revealed": 0, "slots": {}, "alphas": {}, "highlight_columns": 0,
-            "dim_rest": False, "caption": "", "readout": 0,
-            "duration_ms": duration}
+            "dim_rest": False, "caption": "", "readout": 0, "prefix_limit": {},
+            "mark": {}, "focus": None, "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
@@ -300,6 +373,36 @@ def build_specs() -> "list[dict]":
     settled["caption"] = "Sort the rotations"
     specs.append(settled)
 
+    # Why the order is right: walk the neighbours and show that each pair is
+    # already decided at the first letter where the two rotations differ.
+    slot = 1
+    while slot < size:
+        upper = ORDER[slot - 1]
+        lower = ORDER[slot]
+        frame = base_frame(PAIR_MS)
+        frame["revealed"] = size
+        frame["slots"] = dict(sorted_slots)
+        frame["focus"] = set([upper, lower])
+        frame["prefix_limit"] = {upper: DECIDING[slot], lower: DECIDING[slot]}
+        frame["mark"] = {upper: DECIDING[slot] - 1, lower: DECIDING[slot] - 1}
+        frame["caption"] = "Each pair is settled at the first letter where they differ"
+        specs.append(frame)
+        slot = slot + 1
+
+    minimal = base_frame(MINIMAL_HOLD_MS)
+    minimal["revealed"] = size
+    minimal["slots"] = dict(sorted_slots)
+    minimal["prefix_limit"] = dict(MINIMAL)
+    minimal["caption"] = "These few letters already prove the whole order"
+    specs.append(minimal)
+
+    hand_off = base_frame(COLUMN_INTRO_MS)
+    hand_off["revealed"] = size
+    hand_off["slots"] = dict(sorted_slots)
+    hand_off["dim_rest"] = True
+    hand_off["caption"] = "BWT(Text) is the last column"
+    specs.append(hand_off)
+
     lift = 1
     while lift <= size:
         frame = base_frame(COLUMN_MS)
@@ -342,9 +445,20 @@ def draw_frame(spec: dict, output_path: str) -> None:
                 slot = int(round(spec["slots"][row]))
                 if slot < spec["highlight_columns"]:
                     highlighted = True
+            dulled = spec["focus"] is not None and row not in spec["focus"]
+            limit = spec["prefix_limit"].get(row, -1)
             if highlighted:
                 colour = INK
                 font = MONO_BOLD
+            elif dulled:
+                colour = GHOST
+                font = MONO
+            elif column == spec["mark"].get(row, -1):
+                colour = BLUE
+                font = MONO
+            elif limit >= 0 and column >= limit:
+                colour = FAINT
+                font = MONO
             elif spec["dim_rest"]:
                 colour = DIM
                 font = MONO
@@ -368,13 +482,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   color=INK, ha="center", va="center", fontproperties=MONO_BOLD,
                   zorder=6)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: bwt_construction.py OUTPUT.gif")
+        print("usage: example_bwt.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -395,8 +509,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

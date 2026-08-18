@@ -8,7 +8,7 @@ character of the text and where to jump next. The text assembles around a circle
 
 The walk is asserted to visit every row once and to spell the text exactly.
 
-Run:  python3 bwt_last_to_first.py OUTPUT.gif
+Run:  python3 example_bwt_walk.py OUTPUT.gif
 """
 
 import math
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 from lecture_style import (BACKGROUND, BLUE, DIM, FAINT, INK, MONO, MONO_BOLD,
                            OPTIMA_ITALIC, RED, new_axes)
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 TEXT = "panamabananas$"
 PUBLISHED_BWT = "smnpbnnaaaaa$a"
@@ -51,10 +51,17 @@ READOUT_Y = 0.42
 READOUT_SIZE = 19.0
 LABEL_SIZE = 15.0
 
-STEP_MS = 1250
-JUMP_MS = 700
-FIRST_HOLD_MS = 3000
-FINAL_HOLD_MS = 5200
+# Phillip: the walk was too fast to follow. Each step now gets time to be read,
+# and the dwell decays as the move becomes familiar, so the animation slows down
+# where the idea is new and speeds up where it is repetition.
+STEP_MS = 2600
+STEP_FLOOR_MS = 1400
+STEP_DECAY_MS = 120
+JUMP_MS = 1600
+JUMP_FLOOR_MS = 900
+JUMP_DECAY_MS = 70
+FIRST_HOLD_MS = 4200
+FINAL_HOLD_MS = 5600
 
 
 def sorted_matrix() -> "list[str]":
@@ -185,6 +192,18 @@ def slot_xy(slot: int, radius: float) -> "tuple[float, float]":
     return (CIRCLE_X + radius * math.cos(angle), CIRCLE_Y + radius * math.sin(angle))
 
 
+def scheduled(base: int, floor: int, decay: int, index: int) -> int:
+    """Dwell that shortens as a repeated step becomes familiar.
+
+    GIF stores delays in centiseconds, so the result is rounded to 10 ms or the
+    real playback runs shorter than the script reports.
+    """
+    value = base - decay * index
+    if value < floor:
+        value = floor
+    return int(round(value / 10.0)) * 10
+
+
 def base_frame(duration: int) -> dict:
     return {"current": -1, "target": -1, "known": set(), "caption": "",
             "readout": False, "duration_ms": duration}
@@ -206,7 +225,8 @@ def build_specs() -> "list[dict]":
         step = STEPS[index]
         known.add(step["slot"])
 
-        reveal = base_frame(STEP_MS)
+        reveal = base_frame(scheduled(STEP_MS, STEP_FLOOR_MS,
+                                      STEP_DECAY_MS, index))
         reveal["current"] = step["row"]
         reveal["known"] = set(known)
         reveal["caption"] = ("Row %d ends in %s%d, so the previous character is %s"
@@ -214,7 +234,8 @@ def build_specs() -> "list[dict]":
                                 step["symbol"]))
         specs.append(reveal)
 
-        jump = base_frame(JUMP_MS)
+        jump = base_frame(scheduled(JUMP_MS, JUMP_FLOOR_MS,
+                                    JUMP_DECAY_MS, index))
         jump["current"] = step["row"]
         jump["target"] = step["target"]
         jump["known"] = set(known)
@@ -318,13 +339,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
         axis.text(CIRCLE_X, READOUT_Y, TEXT, fontsize=READOUT_SIZE, color=INK,
                   ha="center", va="center", fontproperties=MONO_BOLD, zorder=7)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: bwt_last_to_first.py OUTPUT.gif")
+        print("usage: example_bwt_walk.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -345,8 +366,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

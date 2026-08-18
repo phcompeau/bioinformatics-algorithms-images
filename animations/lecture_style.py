@@ -77,3 +77,18 @@ def sort_permutation(items: "list[str]") -> "list[int]":
     for value, index in pairs:
         order.append(index)
     return order
+
+
+def mono_advance(figure: "plt.Figure", size: float) -> float:
+    """Width of one monospace character, in inches, measured rather than guessed.
+
+    A guessed 0.6 em is wrong for Menlo as matplotlib renders it (it comes out
+    nearer 0.61), and the error accumulates: a line built from several coloured
+    pieces ends up with its last piece sitting on top of the one before it.
+    Measuring a long run of one character averages away the pixel rounding.
+    """
+    sample = "M" * 200
+    probe = figure.text(0.0, 0.0, sample, fontsize=size, fontproperties=MONO_BOLD)
+    extent = probe.get_window_extent(renderer=figure.canvas.get_renderer())
+    probe.remove()
+    return extent.width / figure.dpi / len(sample)

@@ -9,7 +9,7 @@ The middle node at each level is found by the linear-space score sweep, and ever
 one is asserted to lie on a genuine optimal path: the best score through it must
 equal the global optimum computed by a full table.
 
-Run:  python3 middle_node.py OUTPUT.gif
+Run:  python3 example_middle_node.py OUTPUT.gif
 """
 
 import os
@@ -20,8 +20,8 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
 from lecture_style import (BACKGROUND, BLUE, DIM, FAINT, GREEN, INK, MONO,
-                           MONO_BOLD, OPTIMA_ITALIC, RED, new_axes)
-from make_gif import assemble_gif
+                           MONO_BOLD, OPTIMA_ITALIC, RED, mono_advance, new_axes)
+from make_gif import assemble_transparent_gif
 
 FIRST = "GATTACA"
 SECOND = "GTTAC"
@@ -29,10 +29,10 @@ MATCH = 1
 MISMATCH = -1
 INDEL = -1
 
-FIGURE_WIDTH = 8.8
+FIGURE_WIDTH = 10.8
 FIGURE_HEIGHT = 5.6
 RENDER_DPI = 150
-OUTPUT_WIDTH = 1320
+OUTPUT_WIDTH = 1620
 OUTPUT_HEIGHT = 840
 
 GRID_LEFT = 1.35
@@ -46,6 +46,18 @@ BAND_ALPHA = 0.55
 CAPTION_Y = 5.22
 LABEL_SIZE = 15.0
 
+# Phillip: the animation was missing the two scores the whole method rests on.
+# fromSource sits to the left of each middle-column node, toSink to its right,
+# and their sums are added up in a small table beside the lattice.
+SCORE_SIZE = 12.0
+SCORE_OFFSET = 0.30
+SUM_LEFT = 7.85
+SUM_SIZE = 14.0
+
+SWEEP_MS = 800
+SWEEP_HOLD_MS = 2400
+SUM_MS = 1300
+PICK_MS = 3400
 LEVEL_MS = 2400
 BAND_MS = 1700
 FIRST_HOLD_MS = 2600
@@ -313,7 +325,8 @@ def verify() -> "list[str]":
 
     width = COLUMNS * SPACING_X
     height = ROWS * SPACING_Y
-    assert GRID_LEFT + width < FIGURE_WIDTH - 0.3, "lattice too wide"
+    assert GRID_LEFT + width < SUM_LEFT - 0.3, "the lattice runs into the sums"
+    assert SUM_LEFT + 21 * 0.12 < FIGURE_WIDTH - 0.1, "the sums run off the right"
     assert GRID_TOP - height > 0.4, "lattice too tall"
     assert GRID_TOP + 0.3 < CAPTION_Y, "lattice collides with the caption"
     lines.append("lattice is %.2f x %.2f in and fits the canvas" % (width, height))
@@ -324,9 +337,32 @@ def node_xy(row: int, column: int) -> "tuple[float, float]":
     return (GRID_LEFT + column * SPACING_X, GRID_TOP - row * SPACING_Y)
 
 
+MIDDLE_COLUMN = (0 + COLUMNS) // 2
+FROM_SOURCE = prefix_scores(0, ROWS, 0, COLUMNS, MIDDLE_COLUMN)
+TO_SINK = suffix_scores(0, ROWS, 0, COLUMNS, MIDDLE_COLUMN)
+
+
+def best_middle_row() -> int:
+    best = None
+    chosen = 0
+    row = 0
+    while row <= ROWS:
+        value = FROM_SOURCE[row] + TO_SINK[row]
+        if best is None or value > best:
+            best = value
+            chosen = row
+        row = row + 1
+    return chosen
+
+
+BEST_ROW = best_middle_row()
+
+
 def base_frame(duration: int) -> dict:
     return {"shown": [], "band": (), "caption": "", "path": False,
-            "duration_ms": duration}
+            "sweep_column": -1, "sweep_values": [], "sweep_kind": "",
+            "from_shown": False, "to_shown": False, "sums_shown": 0,
+            "best_shown": False, "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
@@ -339,6 +375,63 @@ def build_specs() -> "list[dict]":
     opening = base_frame(FIRST_HOLD_MS)
     opening["caption"] = "%s against %s" % (FIRST, SECOND)
     specs.append(opening)
+
+    # fromSource: sweep the columns from the left, keeping only one at a time.
+    column = 0
+    while column <= MIDDLE_COLUMN:
+        frame = base_frame(SWEEP_MS)
+        frame["sweep_column"] = column
+        frame["sweep_values"] = prefix_scores(0, ROWS, 0, COLUMNS, column)
+        frame["sweep_kind"] = "from"
+        frame["caption"] = ("fromSource: the best score from the source to each "
+                            "node of one column")
+        specs.append(frame)
+        column = column + 1
+
+    landed = base_frame(SWEEP_HOLD_MS)
+    landed["from_shown"] = True
+    landed["caption"] = "Stop at the middle column and keep those scores"
+    specs.append(landed)
+
+    # toSink: the same sweep run backwards from the sink.
+    column = COLUMNS
+    while column >= MIDDLE_COLUMN:
+        frame = base_frame(SWEEP_MS)
+        frame["from_shown"] = True
+        frame["sweep_column"] = column
+        frame["sweep_values"] = suffix_scores(0, ROWS, 0, COLUMNS, column)
+        frame["sweep_kind"] = "to"
+        frame["caption"] = ("toSink: the best score from each node of one column "
+                            "to the sink")
+        specs.append(frame)
+        column = column - 1
+
+    both = base_frame(SWEEP_HOLD_MS)
+    both["from_shown"] = True
+    both["to_shown"] = True
+    both["caption"] = "Now every node of the middle column has both scores"
+    specs.append(both)
+
+    # The sums, one row at a time, then the winner.
+    row = 1
+    while row <= ROWS + 1:
+        frame = base_frame(SUM_MS)
+        frame["from_shown"] = True
+        frame["to_shown"] = True
+        frame["sums_shown"] = row
+        frame["caption"] = ("The best path through a node scores fromSource plus "
+                            "toSink")
+        specs.append(frame)
+        row = row + 1
+
+    pick = base_frame(PICK_MS)
+    pick["from_shown"] = True
+    pick["to_shown"] = True
+    pick["sums_shown"] = ROWS + 1
+    pick["best_shown"] = True
+    pick["caption"] = ("The largest sum is %d, the optimal score, so that node is a "
+                       "middle node" % OPTIMUM)
+    specs.append(pick)
 
     shown = []
     depth = 0
@@ -397,6 +490,60 @@ def draw_frame(spec: dict, output_path: str) -> None:
             row = row + 1
         column = column + 1
 
+    if spec["sweep_column"] >= 0:
+        row = 0
+        while row <= ROWS:
+            x, y = node_xy(row, spec["sweep_column"])
+            if spec["sweep_kind"] == "from":
+                colour = BLUE
+                offset = -SCORE_OFFSET
+            else:
+                colour = GREEN
+                offset = SCORE_OFFSET
+            axis.text(x + offset, y, "%d" % spec["sweep_values"][row],
+                      fontsize=SCORE_SIZE, color=colour, ha="center", va="center",
+                      fontproperties=MONO_BOLD, zorder=6)
+            row = row + 1
+
+    if spec["from_shown"]:
+        row = 0
+        while row <= ROWS:
+            x, y = node_xy(row, MIDDLE_COLUMN)
+            axis.text(x - SCORE_OFFSET, y, "%d" % FROM_SOURCE[row],
+                      fontsize=SCORE_SIZE, color=BLUE, ha="center", va="center",
+                      fontproperties=MONO_BOLD, zorder=6)
+            row = row + 1
+
+    if spec["to_shown"]:
+        row = 0
+        while row <= ROWS:
+            x, y = node_xy(row, MIDDLE_COLUMN)
+            axis.text(x + SCORE_OFFSET, y, "%d" % TO_SINK[row],
+                      fontsize=SCORE_SIZE, color=GREEN, ha="center", va="center",
+                      fontproperties=MONO_BOLD, zorder=6)
+            row = row + 1
+
+    if spec["sums_shown"] > 0:
+        advance = mono_advance(figure, SUM_SIZE)
+        row = 0
+        while row < spec["sums_shown"]:
+            x, y = node_xy(row, MIDDLE_COLUMN)
+            total = FROM_SOURCE[row] + TO_SINK[row]
+            if spec["best_shown"] and row == BEST_ROW:
+                answer_colour = RED
+            else:
+                answer_colour = INK
+            pieces = [("%3d" % FROM_SOURCE[row], BLUE), ("  +  ", DIM),
+                      ("%3d" % TO_SINK[row], GREEN), ("  =  ", DIM),
+                      ("%3d" % total, answer_colour)]
+            place = SUM_LEFT
+            for text, colour in pieces:
+                axis.text(place, y, text, fontsize=SUM_SIZE, color=colour,
+                          ha="left", va="center", fontproperties=MONO_BOLD,
+                          zorder=6)
+                place = place + len(text) * advance
+            row = row + 1
+
     if spec["path"]:
         ordered = sorted(spec["shown"], key=lambda item: item["column"])
         points = [(0, 0)]
@@ -410,6 +557,12 @@ def draw_frame(spec: dict, output_path: str) -> None:
             axis.plot([a[0], b[0]], [a[1], b[1]], color=RED, linewidth=2.6,
                       solid_capstyle="round", zorder=4)
             index = index + 1
+
+    if spec["best_shown"]:
+        x, y = node_xy(BEST_ROW, MIDDLE_COLUMN)
+        ring = patches.Circle((x, y), DOT_RADIUS * 1.8, facecolor=RED,
+                              edgecolor="none", zorder=5)
+        axis.add_patch(ring)
 
     for entry in spec["shown"]:
         x, y = node_xy(entry["row"], entry["column"])
@@ -437,13 +590,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   color=INK, ha="center", va="center", fontproperties=OPTIMA_ITALIC,
                   zorder=7)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: middle_node.py OUTPUT.gif")
+        print("usage: example_middle_node.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -464,8 +617,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

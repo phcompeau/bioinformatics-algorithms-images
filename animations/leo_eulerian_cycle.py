@@ -11,7 +11,7 @@ Act 2 (blue):  He restarts from a node on the cycle that still has an unused
                edge, re-walks the cycle, then keeps going. Stuck again.
 Act 3 (red):   Same move once more, and this time every edge gets used.
 
-Run:  python3 leo_eulerian_cycle.py OUTPUT.gif
+Run:  python3 example_eulerian_ant.py OUTPUT.gif
 """
 
 import math
@@ -28,7 +28,7 @@ import numpy as np
 from matplotlib.path import Path as MplPath
 from PIL import Image
 
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 BLUE = "#176FC1"
 GREEN = "#149B52"
@@ -527,7 +527,7 @@ def draw_frame(spec: dict, output_path: str) -> None:
 
     draw_ant(axis, spec["ant"][0], spec["ant"][1], spec["ant"][2])
 
-    figure.savefig(output_path, facecolor="white")
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
@@ -678,7 +678,7 @@ def closing_caption(act_number: int, used_count: int) -> str:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: leo_eulerian_cycle.py OUTPUT.gif")
+        print("usage: example_eulerian_ant.py OUTPUT.gif")
         return
 
     print("Structural checks:")
@@ -702,8 +702,9 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations,
+                             matte="#FFFFFF", colours=160)
     print("Saved " + sys.argv[1])
     print("Frames kept in " + directory)
 

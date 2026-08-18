@@ -9,7 +9,7 @@ that ends in the sentinel is the text.
 Every stage is asserted against the true sorted rotation matrix, so a wrong
 column cannot survive to a frame.
 
-Run:  python3 bwt_inversion.py OUTPUT.gif
+Run:  python3 example_bwt_inversion.py OUTPUT.gif
 """
 
 import os
@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from lecture_style import (BACKGROUND, DIM, FAINT, INK, MONO, MONO_BOLD, RED,
                            OPTIMA_ITALIC, ease, new_axes, staggered_progress,
                            transit_alpha)
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 TEXT = "banana$"
 PUBLISHED_BWT = "annb$aa"
@@ -358,13 +358,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   color=RED, ha="center", va="center", fontproperties=MONO_BOLD,
                   zorder=7)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: bwt_inversion.py OUTPUT.gif")
+        print("usage: example_bwt_inversion.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -385,8 +385,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

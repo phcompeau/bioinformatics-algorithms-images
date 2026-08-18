@@ -18,7 +18,8 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Inverting the Burrows-Wheeler transform (Chapter 9, BWT) | [`images/BWT/bwt_inversion.gif`](../images/BWT/bwt_inversion.gif) | `bwt_inversion.py` |
 | BWT decompression by the last-to-first property (Chapter 9, BWT) | [`images/BWT/bwt_last_to_first.gif`](../images/BWT/bwt_last_to_first.gif) | `bwt_last_to_first.py` |
 | Building the suffix array (Chapter 9, BWT) | [`images/BWT/suffix_array_construction.gif`](../images/BWT/suffix_array_construction.gif) | `suffix_array.py` |
-| UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py` |
+| UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py basic` |
+| UPGMA and the weighted average (Chapter 7, Evolution) | [`images/Evolution/upgma_weighted_average.gif`](../images/Evolution/upgma_weighted_average.gif) | `upgma.py quiz` |
 | Neighbor-joining (Chapter 7, Evolution) | [`images/Evolution/neighbor_joining.gif`](../images/Evolution/neighbor_joining.gif) | `neighbor_joining.py` |
 | Backward search with the BWT (Chapter 9, BWT) | [`images/BWT/bwt_pattern_matching.gif`](../images/BWT/bwt_pattern_matching.gif) | `bwt_pattern_matching.py` |
 | 2-break sorting on the breakpoint graph (Chapter 6, Rearrangements) | [`images/Rearrangements/breakpoint_graph_2break.gif`](../images/Rearrangements/breakpoint_graph_2break.gif) | `breakpoint_graph.py` |
@@ -26,7 +27,12 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Linear-space alignment by middle nodes (Chapter 5, Alignment) | [`images/Alignment/middle_node_alignment.gif`](../images/Alignment/middle_node_alignment.gif) | `middle_node.py` |
 
 `make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
-palette, fonts, and easing shared by the lecture-styled animations.
+palette, fonts, easing, and measured monospace metrics shared by the
+lecture-styled animations.
+
+Every GIF here has a **transparent background**, so it sits on a white or cream
+page without a visible box around it. See "Transparency" under Method for how,
+and for the one thing that goes wrong if it is done the obvious way.
 
 ## Leo the ant
 
@@ -156,10 +162,13 @@ the closest match on macOS.
 **Building the trie** (`suffix_trie_construction.gif`, about 46 s, 1320x1140).
 The 14 suffixes are inserted longest first. For each one, the nodes that already exist
 light up blue as the suffix threads through them, then the nodes that are new
-appear one letter at a time in green, ending in a dark numbered leaf. The line
-at the bottom shows the suffix being inserted, coloured the same way: blue for
-the part that was already in the trie, green for the part being added. Nodes sit
-in their final positions from the start, so nothing jumps as the trie fills in.
+appear one letter at a time in green, ending in a dark numbered leaf. The text
+runs large across the top of the frame with the suffix being inserted picked out
+inside it: everything before it stays faint, the part that already had a path is
+blue, and the part being added right now is green. There is only ever one copy of
+the string on screen, so nothing has to be matched up between two places. Nodes
+sit in their final positions from the start, so nothing jumps as the trie fills
+in.
 
 **Compressing to the tree** (`suffix_tree_compression.gif`, about 14 s). Every
 node on a non-branching path is marked red, then the whole figure collapses: the
@@ -169,10 +178,15 @@ Nothing moves sideways. The result is 1.7 times shorter than the trie, which is
 the point of the compression, so the empty space left at the bottom of the final
 frame is doing real work.
 
-Each collapsed edge is made long enough to seat its own rotated label, and the
-label is anchored toward the child end so that labels on the root's nearly
-parallel edges separate along with the children they belong to. A check asserts
-every edge is long enough for its label, and that no two trie letters land
+Every letter is placed by a clearance solver rather than by a fixed offset. Each
+one starts at the house position (a set back-off from its child, offset to one
+side); letters are then placed shallowest first and moved only when the default
+would collide, and then by the smallest amount that clears. Collapsed labels move
+as whole runs, sliding along their edge or flipping to its other side, which is
+what keeps the root's `panamabananas$` clear of the `s$` beside it: those two
+edges end up nearly parallel. The checks assert that every letter clears every
+node, every edge it does not belong to, and every other letter, and that no two
+trie letters land
 closer than 0.17 in.
 
 ```
@@ -253,27 +267,61 @@ Checked by asserting the walk visits all 14 rows exactly once, closes back on ro
 
 ## The suffix array
 
-`suffix_array_construction.gif`, about 23 s, following slides 251 onward. Every
+`suffix_array_construction.gif`, about 48 s, following slides 251 onward. Every
 suffix appears with the position it starts at, the suffixes sort, and the column
 of positions left behind is the suffix array. Rows fade while they are in flight,
 since at full opacity crossing rows smear together.
 
+Two things make the sort more than an assertion. First, once the rows settle, the
+animation walks the neighbouring pairs and shows that each pair is already decided
+at the first letter where the two suffixes differ, with that letter in blue.
+Then it trims every row to the shortest prefix that holds its place, and the block
+is still visibly in order: 32 of the 105 characters on screen settle the whole
+sort, at most 4 in any row. Second, the hand-off to "these positions are the
+suffix array" now runs slowly, and the text itself sits at the bottom with a ruler
+of positions under it, so each number being read off the block lights up as a
+place inside `panamabananas$` rather than as a bare digit.
+
 The array is asserted against the left-to-right leaf order of the suffix tree,
 which was itself verified against the published figure, so the two Chapter 9
-animations cross-check each other.
+animations cross-check each other. A further check truncates every suffix to its
+own minimal prefix and asserts the order is unchanged, which is exactly the claim
+the new phase makes on screen.
 
 ## UPGMA
 
-`upgma_clustering.gif`, about 32 s, following Evolutionary_Trees.pptx slides
-110-120. The distance matrix sits on the left and the tree grows on the right:
-find the closest two clusters, hang a new node at half their distance, then
-replace their rows and columns with a *weighted* average, which is the step the
-deck spends a separate slide correcting. Limb lengths are dark, node heights gray.
+Two animations from one generator, one for each worked example in the deck.
 
-The matrix is a picture in the deck, so its numbers were read off the slide; but
-the resulting nine numbers are text, and the animation asserts its computed node
-ages and limb lengths reproduce them exactly. It also checks the tree is
-ultrametric, which is the property UPGMA guarantees.
+**The walkthrough** (`upgma_clustering.gif`, about 41 s, slides 110-118). The
+distance matrix sits on the left and the tree grows on the right: find the closest
+two clusters, hang a new node at half their distance, then replace their rows and
+columns with an average. Limb lengths are dark, node heights gray.
+
+**The weighted average** (`upgma_weighted_average.gif`, about 45 s, slides
+121-129, the "Quick UPGMA Quiz"). Here the clusters end up different sizes, and
+this is the example the deck uses to correct the plain average: `D({i,k,l}, j)`
+comes out 16 with the weights and 17 without. The animation shows the weighted
+line in full and then, on the one entry where it matters, the unweighted line
+underneath it in red as the wrong answer.
+
+In both, every new matrix entry is now worked out on screen instead of just
+appearing: the two old distances light up red in the matrix above, and the line
+along the bottom spells out `D(C, X) = (n1 . d1 + n2 . d2) / (n1 + n2)` with the
+real numbers in place, so the weights are visible doing their job.
+
+The matrices are real tables in the deck rather than pictures, so they were read
+out of the file. The resulting nine numbers per example are text on the slides,
+and each animation asserts its computed node ages and limb lengths reproduce them
+exactly. It also checks the tree is ultrametric, and, the strongest check here,
+that every averaged entry equals the direct average over all pairs of leaves
+across the two clusters, which is the definition the weighted recurrence is a
+shortcut for. That check is what an unweighted average fails.
+
+```
+cd animations
+python3 upgma.py basic ../images/Evolution/upgma_clustering.gif
+python3 upgma.py quiz ../images/Evolution/upgma_weighted_average.gif
+```
 
 ### Suggested figure captions
 
@@ -299,21 +347,43 @@ ultrametric, which is the property UPGMA guarantees.
 > a weighted average of their distances to everything else. The tree that results
 > is ultrametric: every leaf sits the same distance from the root.
 
+> **The average has to be weighted.** When the two clusters being merged hold
+> different numbers of species, averaging their two matrix entries is not the
+> average distance between the clusters. Weighting each entry by the size of the
+> cluster it came from is: here it gives 16 rather than 17, because `{i, k, l}`
+> speaks for three species and `j` for one.
+
 ## Neighbor-joining
 
-`neighbor_joining.gif`, about 25 s, following Evolutionary_Trees.pptx slides
-145-171. Build the neighbor-joining matrix from D and its row totals, join the
-pair with the smallest entry, split their shared distance using the total-distance
-difference, replace them with a new node, and recurse. With three taxa left every
-entry of D* ties, which is the base case the deck flags as "they're all
-neighbors". The last frame brings D back so the finished tree can be checked
-against it by eye.
+`neighbor_joining.gif`, about 61 s, following Evolutionary_Trees.pptx slides
+145-171. Both matrices are on screen the whole time: D with its TotalDistance
+column on the left, D* on the right, and D* fills in one entry at a time rather
+than arriving finished. Every number is worked out in the panel underneath:
+
+- **TotalDistance**, one taxon at a time, as the sum of its own row with each
+  term written out.
+- **D\*(i,j)**, one entry at a time, as `(n-2) D(i,j) - TotalDistance(i) -
+  TotalDistance(j)` with the real numbers substituted and the two totals in red.
+- **The limb lengths**, from `delta = (TotalDistance(i) - TotalDistance(j)) /
+  (n-2)`, then `limb(i) = (D(i,j) + delta) / 2` and `limb(j) = (D(i,j) - delta) /
+  2`. The formula was missing entirely before.
+- **The reduced matrix**, one new entry at a time, each from the three old
+  distances it replaces.
+
+With three taxa left every entry of D* ties, which is the base case the deck flags
+as "they're all neighbors", and its three limbs come straight out of the
+three-point formula. The second round runs at 70% of the first round's dwell,
+since by then the moves are repetition. The last frame brings the original D back
+so the finished tree can be checked against it by eye.
 
 The deck shows D as a picture, but its `TotalDistance` column is text, and that
 column pins the matrix down uniquely; the recovered matrix is then confirmed by
 reproducing all sixteen entries of the printed D*. Limb lengths are asserted
 against slide 171, and the finished tree is asserted to reproduce every distance
-in D, which is what additivity means.
+in D, which is what additivity means. Two further checks cover the working now
+shown on screen: every total really is the sum of its own row, and the two limb
+lengths add up to D(i,j) and differ by delta, which is the pair of equations they
+come from.
 
 ```
 cd animations
@@ -329,41 +399,77 @@ python3 neighbor_joining.py ../images/Evolution/neighbor_joining.gif
 > recursing on a smaller matrix reconstructs the tree, which for an additive
 > matrix reproduces every original distance exactly.
 
-## Five more, with the text kept to a minimum
+## Four more
 
-These carry no explanation in the frame at all beyond the data itself. The
-explanations live in the suggested captions below.
-
-**Backward search** (`bwt_pattern_matching.gif`, 22 s). Only the first and last
+**Backward search** (`bwt_pattern_matching.gif`, 25 s). Only the first and last
 columns are known; the rest of each row is a row of question marks. Matching
 `ana` right to left, the rows whose last column carries the next symbol turn red,
-and the first-last property maps them onto a contiguous band. Three steps leave a
+and the first-last property maps them onto a contiguous band. Each step now says
+what it is doing: how many rows of the band end in the symbol, and that those same
+symbols start the new band. Three steps leave a
 band of three rows, and the suffix array turns those into positions 1, 7 and 9.
 Checked by asserting each band holds exactly the rows starting with the matched
 suffix, and that the positions agree with a brute-force scan of the text.
 
-**2-break sorting** (`breakpoint_graph_2break.gif`, 18 s). Genome P's adjacencies
+**2-break sorting** (`breakpoint_graph_2break.gif`, 29 s). Genome P's adjacencies
 in red and Q's in blue on the same block ends, so every node has one edge of each
 colour and the graph splits into alternating cycles. Each 2-break swaps two red
-edges for two others on the same four ends and splits a cycle; the number at the
-bottom is the cycle count. Checked by asserting the graph is 2-regular in each
-colour, every 2-break raises the count by exactly one, the number of 2-breaks
-equals blocks minus starting cycles, and P finishes identical to Q.
+edges for two others on the same four ends and splits a cycle.
 
-**Small parsimony** (`small_parsimony.gif`, 23 s). The four species from slide 179
-on the same tree. Each alignment column is solved independently, so the internal
-strings fill in left to right with the live column in red while each edge's
-mismatch count and the running total climb. Every column's score is checked
-against a brute-force search over all 64 assignments to the three internal nodes.
-The optimum turns out to be 8, so the assignment printed on the slide was already
+The first version of this animation was pretty and unreadable: nothing said which
+colour was which, the cycles it is all about were invisible, and the count at the
+bottom was a bare number. Now **every node wears the colour of the cycle it
+belongs to**, so a 2-break splitting one cycle in two is one colour becoming two,
+which is the whole idea made visible. A legend names red as P (the genome being
+sorted) and blue as Q (the target). Each step marks the two doomed red edges
+before cutting them and then says what the cut did to the count. Red and blue are
+each offset slightly to their own side of the line, because they land on the same
+pair of nodes wherever P already agrees with Q, and by the last frame that is
+every edge: without the offset the finished graph looks like P alone.
+
+Checked by asserting the graph is 2-regular in each colour, every 2-break raises
+the count by exactly one, the number of 2-breaks equals blocks minus starting
+cycles, and P finishes identical to Q.
+
+**Small parsimony** (`small_parsimony.gif`, 58 s). The four species from slide 179
+on the same tree. Because each alignment column is solved on its own, this
+animation follows **one** column all the way through instead of skating over all
+ten, and shows every number:
+
+- Each leaf's score vector: 0 for the letter it carries, infinite for the other
+  three.
+- Then, for each internal node and each of the four symbols in turn, the minimum
+  over each child's four candidate sums written out in full, `min( 0+0, inf+1,
+  inf+1, inf+1 )`, with the winning term in green and the resulting score dropped
+  into that node's vector.
+- The root's smallest score, which is the parsimony score of the column.
+- Backtracking: the root takes its cheapest symbol, then each child takes the
+  symbol that produced its parent's score, and the one edge carrying a mutation
+  turns red.
+
+Position 5 was chosen because its answer is unique, so nothing has to be waved
+through as an arbitrary tie-break. Every column's score is checked against a
+brute-force search over all 64 assignments to the three internal nodes, the
+backtracked assignment is checked to achieve the minimum, the recorded winners are
+checked to rebuild the scores they belong to, and the ten columns are checked to
+total the 8 printed on the slide. So the assignment on the slide was already
 optimal.
 
-**Linear-space alignment** (`middle_node_alignment.gif`, 20 s). Instead of storing
+**Linear-space alignment** (`middle_node_alignment.gif`, 43 s). Instead of storing
 the whole table, sweep the middle column of a rectangle to find the one node where
-an optimal path crosses it, then recurse on the two rectangles either side. The
-green bands are the columns being swept; the red dots are the middle nodes that
-survive. The strongest check here: the path assembled from the middle nodes alone
-must score exactly what a full table says the optimum is, which it does at 3.
+an optimal path crosses it, then recurse on the two rectangles either side.
+
+The two scores the method rests on are now the point of the animation. Columns
+sweep in from the left carrying **fromSource** (blue) and back in from the right
+carrying **toSink** (green), one column of memory at a time, which is the whole
+reason the method is linear-space. They stop on the middle column, both scores
+stay beside each node, and then the sums are added up row by row in a table to the
+right. The largest sum is 3, the optimal score, and the node that produced it is
+the middle node. Only then does the recursion run: the green bands are the columns
+being swept, and the red dots are the middle nodes that survive.
+
+The strongest check here: the path assembled from the middle nodes alone must
+score exactly what a full table says the optimum is, which it does at 3.
 
 The two halves of each rectangle deliberately **share** the middle column. Making
 the right half start one column later, which looks like the obvious way to avoid
@@ -385,15 +491,19 @@ assembled path silently drops to a worse score.
 > cycles operations, and that many always suffice.
 
 > **Small parsimony.** Because the tree is scored column by column, each position
-> of the alignment can be solved on its own by dynamic programming. Filling the
-> internal nodes one column at a time builds the most parsimonious ancestral
-> sequences, and the mismatch counts along the edges accumulate into the total
-> parsimony score.
+> of the alignment can be solved on its own by dynamic programming. Working up from
+> the leaves, each node records the cheapest cost of its whole subtree for every
+> symbol it might hold; the root's smallest entry is the score of the column, and
+> reading the choices back down the tree names the ancestral letters and the edges
+> where mutations happened.
 
 > **Linear-space alignment.** The full dynamic-programming table needs quadratic
 > memory, but finding where an optimal path crosses a single middle column needs
-> only linear memory. Recursing on the rectangles either side pins down one node
-> per column, and those nodes alone reconstruct the optimal alignment.
+> only linear memory: sweep in from the source for the best score to each node of
+> that column, sweep in from the sink for the best score out of it, and the node
+> whose two scores sum highest lies on an optimal path. Recursing on the rectangles
+> either side pins down one node per column, and those nodes alone reconstruct the
+> optimal alignment.
 
 ## Method
 
@@ -453,15 +563,51 @@ many times, the dwell can decay: the Manhattan fill gives its first few nodes
 2.2 s to establish the pattern and later ones 1.1 s, since by then the viewer
 is reading numbers rather than learning a procedure.
 
-Holds are nearly free in file size, because identical consecutive frames
-collapse into a single frame with the summed delay. Being generous with
-reading time costs playback length, not bytes. GIF stores delays in
-centiseconds, so keep every duration a multiple of 10 ms or real playback
-silently runs shorter than what the script reports.
+GIF stores delays in centiseconds, so keep every duration a multiple of 10 ms or
+real playback silently runs shorter than what the script reports.
+
+Holds used to be nearly free in file size, because identical consecutive frames
+collapse into one frame with the summed delay. That is no longer true here:
+transparent frames cannot be diffed against each other, so each one is stored
+whole (see Transparency below). Being generous with reading time now costs a
+little size as well as playback length, which is still the right trade.
 
 The knobs are named constants at the top of the generator (`MOTION_MS`,
 `READING_PER_CHAR_MS`, `NODE_ARRIVAL_MS`, `FRAMES_NEW_EDGE`), so pacing can
 be retuned without touching any geometry.
+
+### 4. Transparency, and the trap in it
+
+Every GIF here has a transparent background so it can sit on a white or cream page
+without a visible box. Two things make that work, and the obvious approach fails
+at both.
+
+**Use the alpha channel, not the background colour.** GIF transparency is a single
+palette index, not an alpha channel. Marking the background *colour* transparent
+looks like the easy route and it punches holes straight through every piece of
+white ink in these figures: the white numerals on the dark leaf discs, the white
+node fills in the suffix tree. Frames are rendered with `savefig(transparent=True)`
+so they carry real alpha, and the alpha channel alone decides what is dropped.
+
+**Keep anything even slightly opaque.** Anti-aliased edges cannot be half
+transparent in a GIF, so any pixel with alpha above a whisker is composited onto a
+matte colour and kept opaque. The matte is the ground the page will actually use
+(`#EEE9DF` for the lecture-styled ones, white for Leo and the Manhattan pair):
+exact on that ground, imperceptible on a near neighbour, a faint fringe on
+something far away. Thresholding at half opacity instead would also destroy the
+deliberate fades, since a row at 20% opacity in mid-flight would blink out rather
+than fade.
+
+Two consequences worth knowing. Frames must be stored whole, because disposal has
+to clear the canvas between them, so these files are roughly a third larger than
+the opaque versions were; a small adaptive palette (64 colours, 160 for the one
+with a photographic sprite) buys most of that back, since hundreds of
+near-duplicate colours are just noise for the compressor. And tones tuned against
+cream can vanish against white: the pushed-back gray used for rows that are not
+under discussion had to be darkened once the cream was no longer there to hold it
+up.
+
+`assemble_transparent_gif` in `make_gif.py` does all of this.
 
 ## Style
 

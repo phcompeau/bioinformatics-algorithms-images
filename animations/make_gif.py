@@ -70,3 +70,60 @@ def assemble_gif(
         loop=0,
         optimize=True,
     )
+
+
+def assemble_transparent_gif(
+    frame_paths: "list[str]",
+    output_path: str,
+    width: int,
+    height: int,
+    frame_durations: "list[int]",
+    matte: str = "#EEE9DF",
+    colours: int = 64,
+) -> None:
+    """Write a looping GIF whose background is transparent.
+
+    The frames must be RGBA (saved with `transparent=True`), because GIF
+    transparency is a single palette index rather than an alpha channel: the only
+    safe way to tell "background" from "white ink" is the alpha channel itself.
+    White leaf numbers on dark discs would otherwise be punched into holes.
+
+    Anti-aliased edge pixels cannot be half transparent in a GIF, so anything even
+    slightly opaque is composited against `matte` and kept. That covers deliberate
+    fades too: a row at 20% opacity mid-flight would otherwise blink out entirely
+    rather than fading. Pick the colour the page will actually use and those pixels
+    are exact; on a different background they carry a faint fringe of the matte.
+    """
+    matte_rgb = (int(matte[1:3], 16), int(matte[3:5], 16), int(matte[5:7], 16))
+    # Transparent frames cannot be diffed against each other, so each one is
+    # stored whole. A small palette is what keeps that affordable: these figures
+    # use few real colours, and quantizing to hundreds of near-duplicates only
+    # adds noise for the compressor to store.
+    clear_index = colours
+    frames = []
+    for frame_path in frame_paths:
+        image = Image.open(frame_path).convert("RGBA")
+        image = image.resize((width, height), Image.LANCZOS)
+        alpha = image.getchannel("A")
+        backdrop = Image.new("RGB", image.size, matte_rgb)
+        backdrop.paste(image.convert("RGB"), (0, 0), alpha)
+        # One palette entry past the ink is reserved for transparency.
+        flat = backdrop.convert("P", palette=Image.ADAPTIVE, colors=colours)
+        clear = alpha.point(lambda value: 255 if value < 8 else 0)
+        flat.paste(clear_index, (0, 0), clear)
+        frames.append(flat)
+
+    if len(frame_durations) != len(frames):
+        raise ValueError("frame_durations must have one value per frame")
+
+    first_frame = frames[0]
+    first_frame.save(
+        output_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=list(frame_durations),
+        loop=0,
+        transparency=clear_index,
+        disposal=2,
+        optimize=False,
+    )

@@ -10,7 +10,7 @@ Everything is asserted: the band is contiguous at every step, its size equals
 the true number of occurrences, and the reported positions are exactly where the
 pattern really occurs in the text.
 
-Run:  python3 bwt_pattern_matching.py OUTPUT.gif
+Run:  python3 example_bwt_matching.py OUTPUT.gif
 """
 
 import os
@@ -22,17 +22,17 @@ import matplotlib.pyplot as plt
 
 from lecture_style import (BACKGROUND, DIM, FAINT, INK, MONO, MONO_BOLD, RED,
                            OPTIMA_ITALIC, new_axes)
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 TEXT = "panamabananas$"
 PATTERN = "ana"
 PUBLISHED_OCCURRENCES = 3
 
 FIGURE_WIDTH = 8.2
-FIGURE_HEIGHT = 6.2
+FIGURE_HEIGHT = 6.8
 RENDER_DPI = 150
 OUTPUT_WIDTH = 1230
-OUTPUT_HEIGHT = 930
+OUTPUT_HEIGHT = 1020
 
 CHAR_ADVANCE = 0.235
 ROW_HEIGHT = 0.335
@@ -45,6 +45,13 @@ MATRIX_TOP = 5.72
 READOUT_Y = 0.80
 READOUT_SIZE = 24.0
 BAND_PAD = 0.14
+# Phillip: every step needs a line of explanation, or the band just moves.
+CAPTION_Y = 6.42
+LABEL_SIZE = 15.0
+OPENING_MS = 3400
+LOOK_MS = 2800
+LANDED_MS = 2600
+FINAL_MS = 5600
 
 
 def sorted_matrix() -> "list[str]":
@@ -229,36 +236,44 @@ def row_y(row: int) -> float:
 
 def base_frame(duration: int) -> dict:
     return {"top": 0, "bottom": SIZE - 1, "hits": [], "symbol": "",
-            "matched": "", "positions": False, "duration_ms": duration}
+            "matched": "", "positions": False, "caption": "",
+            "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
     specs = []
 
-    opening = base_frame(2600)
+    opening = base_frame(OPENING_MS)
+    opening["caption"] = ("Only the first and last columns are known, so %s is "
+                          "matched from the right" % PATTERN)
     specs.append(opening)
 
     for step in STEPS:
-        look = base_frame(2400)
+        look = base_frame(LOOK_MS)
         look["top"] = step["top"]
         look["bottom"] = step["bottom"]
         look["hits"] = list(step["hits"])
         look["symbol"] = step["symbol"]
         look["matched"] = step["matched"][1:]
+        look["caption"] = ("%d rows of the band end in %s"
+                           % (len(step["hits"]), step["symbol"]))
         specs.append(look)
 
-        landed = base_frame(2400)
+        landed = base_frame(LANDED_MS)
         landed["top"] = step["new_top"]
         landed["bottom"] = step["new_bottom"]
         landed["symbol"] = step["symbol"]
         landed["matched"] = step["matched"]
+        landed["caption"] = ("Those same %s's start the new band, which now matches %s"
+                             % (step["symbol"], step["matched"]))
         specs.append(landed)
 
-    final = base_frame(5200)
+    final = base_frame(FINAL_MS)
     final["top"] = FINAL_TOP
     final["bottom"] = FINAL_BOTTOM
     final["matched"] = PATTERN
     final["positions"] = True
+    final["caption"] = ("Every row left in the band is an occurrence of %s" % PATTERN)
     specs.append(final)
     return specs
 
@@ -314,6 +329,11 @@ def draw_frame(spec: dict, output_path: str) -> None:
                     last_colour, bold)
         row = row + 1
 
+    if spec["caption"] != "":
+        axis.text(FIGURE_WIDTH / 2, CAPTION_Y, spec["caption"], fontsize=LABEL_SIZE,
+                  color=INK, ha="center", va="center", fontproperties=OPTIMA_ITALIC,
+                  zorder=7)
+
     matched = spec["matched"]
     unmatched = PATTERN[0:len(PATTERN) - len(matched)]
     advance = READOUT_SIZE / 72.0 * 0.60
@@ -331,13 +351,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   fontsize=READOUT_SIZE - 5, color=INK, ha="center", va="center",
                   fontproperties=MONO_BOLD, zorder=7)
 
-    figure.savefig(output_path, facecolor=BACKGROUND)
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: bwt_pattern_matching.py OUTPUT.gif")
+        print("usage: example_bwt_matching.py OUTPUT.gif")
         return
     print("Structural checks:")
     for line in verify():
@@ -358,8 +378,8 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, sys.argv[1], width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations)
     print("Saved " + sys.argv[1])
 
 

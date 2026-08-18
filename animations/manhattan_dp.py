@@ -12,8 +12,8 @@ Edge weights are transcribed from the published Chapter 5 figures, and the DP
 is recomputed here and asserted against the published node values and the
 published red path, so a wrong number cannot survive to a frame.
 
-Run:  python3 manhattan_dp.py fill OUTPUT.gif
-      python3 manhattan_dp.py backtrack OUTPUT.gif
+Run:  python3 example_manhattan_dp.py fill OUTPUT.gif
+      python3 example_manhattan_dp.py backtrack OUTPUT.gif
 """
 
 import math
@@ -33,7 +33,7 @@ plt.rcParams["mathtext.rm"] = "Optima"
 plt.rcParams["mathtext.it"] = "Optima:italic"
 plt.rcParams["mathtext.bf"] = "Optima:bold"
 
-from make_gif import assemble_gif
+from make_gif import assemble_transparent_gif
 
 BLUE = "#176FC1"
 GREEN = "#149B52"
@@ -503,7 +503,7 @@ def draw_frame(spec: dict, output_path: str) -> None:
         row = row + 1
 
     draw_block(axis, spec["block"])
-    figure.savefig(output_path, facecolor="white")
+    figure.savefig(output_path, transparent=True)
     plt.close(figure)
 
 
@@ -848,7 +848,7 @@ def verify_layout() -> "list[str]":
 
 def main() -> None:
     if len(sys.argv) < 3:
-        print("usage: manhattan_dp.py fill|backtrack OUTPUT.gif")
+        print("usage: example_manhattan_dp.py fill|backtrack OUTPUT.gif")
         return
     which = sys.argv[1]
     output_path = sys.argv[2]
@@ -882,8 +882,9 @@ def main() -> None:
         frame_paths.append(path)
         index = index + 1
 
-    assemble_gif(frame_paths, output_path, width=OUTPUT_WIDTH, height=OUTPUT_HEIGHT,
-                 frame_durations=durations)
+    assemble_transparent_gif(frame_paths, output_path, width=OUTPUT_WIDTH,
+                             height=OUTPUT_HEIGHT, frame_durations=durations,
+                             matte="#FFFFFF")
     print("Saved " + output_path)
 
 
