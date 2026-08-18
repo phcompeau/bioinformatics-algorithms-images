@@ -1,20 +1,26 @@
 """Animated small parsimony, in the 02-180 lecture style.
 
-Uses the four species from Evolutionary_Trees.pptx slide 179 (chimp, human, seal,
-whale) on the same balanced tree. Small parsimony solves each column of the
-alignment on its own, so this animation follows ONE column all the way through
-and shows every number:
+This is the deck's own worked example (Evolutionary_Trees.pptx slides 190-198):
+eight leaves carrying one column of an alignment, C C A C G G T C, on a balanced
+rooted tree. Small parsimony treats every column of an alignment independently, so
+one column is the whole problem.
+
+Everything the algorithm computes is shown:
 
   leaves       score 0 for the letter they carry, infinite for the other three
-  each node    the four scores s(v, k), one symbol at a time, with the minimum
-               over each child's four candidate sums written out in full
+  each node    the four scores s(v, k) filling in one symbol at a time, each with
+               the minimum over each child's four candidate sums written out
   the root     its smallest score is the parsimony score of the column
-  backtracking the letter each node takes, chosen by the minimum that produced
-               its parent's score, then the one edge that carries a mutation
+  backtracking the letter each node takes, chosen by the minimum that produced its
+               parent's score, then the edges that carry a mutation
 
-Every score is checked against a brute-force search over all 64 assignments to
-the internal nodes, the backtracked assignment is checked to achieve the minimum,
-and the sum over all columns is checked against the score printed on the slide.
+Each node's scores are laid out the way the deck lays them out: a header row
+A C G T with the values directly beneath, so the columns line up.
+
+Oracles: all 28 score-vector entries and all 7 ancestral letters are asserted
+against the numbers printed on slides 194 and 198, and the score is independently
+checked against a brute-force search over all 4^7 assignments to the internal
+nodes.
 
 Run:  python3 example_small_parsimony.py OUTPUT.gif
 """
@@ -31,83 +37,102 @@ from lecture_style import (BACKGROUND, BLUE, DIM, DISC, FAINT, GREEN, INK, MONO,
                            new_axes)
 from make_gif import assemble_transparent_gif
 
-LEAF_NAMES = ["Chimp", "Human", "Seal", "Whale"]
-LEAF_STRINGS = ["ACGTAGGCCT", "ATGTAAGACT", "TCGAGAGCAC", "TCGAAAGCAT"]
 ALPHABET = "ACGT"
-# The tree of slide 179: root over two internal nodes, each over two leaves.
-CHILDREN = {"root": ["left", "right"], "left": ["Chimp", "Human"],
-            "right": ["Seal", "Whale"]}
-POSTORDER = ["left", "right", "root"]
-SLIDE_SCORE = 8
-# Position 5 of the alignment (A, A, G, A). Its answer is unique, so nothing has
-# to be waved through with "either of these will do".
-COLUMN = 4
-
-FIGURE_WIDTH = 12.0
-FIGURE_HEIGHT = 7.2
-RENDER_DPI = 120
-OUTPUT_WIDTH = 1440
-OUTPUT_HEIGHT = 864
-
-POSITIONS = {
-    "root": (8.10, 6.30),
-    "left": (6.08, 4.90), "right": (10.12, 4.90),
-    "Chimp": (5.00, 3.40), "Human": (7.15, 3.40),
-    "Seal": (9.05, 3.40), "Whale": (11.20, 3.40),
+# Read off the picture on slide 191: eight leaves, left to right.
+LEAF_LETTERS = ["C", "C", "A", "C", "G", "G", "T", "C"]
+CHILDREN = {
+    "n0": ("L0", "L1"), "n1": ("L2", "L3"), "n2": ("L4", "L5"), "n3": ("L6", "L7"),
+    "m0": ("n0", "n1"), "m1": ("n2", "n3"),
+    "root": ("m0", "m1"),
 }
-# Each node's four scores are written in a row near it. The row is nudged sideways
-# so it clears the edge climbing past it, and the entries are all three characters
-# wide so nothing has to be measured twice.
-VECTOR_SPACING = 0.40
-VECTOR_SHIFT = {"left": -0.36, "right": 0.36}
-LEAF_RADIUS = 0.21
-NODE_RADIUS = 0.16
-LETTER_SIZE = 15.0
-NAME_SIZE = 11.0
+POSTORDER = ["n0", "n1", "n2", "n3", "m0", "m1", "root"]
+# Every score vector printed on slide 194, and every ancestral letter on slide 198.
+PUBLISHED_SCORES = {
+    "n0": (2, 0, 2, 2), "n1": (1, 1, 2, 2), "n2": (2, 2, 0, 2), "n3": (2, 1, 2, 1),
+    "m0": (2, 1, 3, 3), "m1": (3, 2, 2, 2), "root": (5, 3, 4, 4),
+}
+PUBLISHED_ASSIGNMENT = {"root": "C", "m0": "C", "m1": "C", "n0": "C", "n1": "C",
+                        "n2": "G", "n3": "C"}
+PUBLISHED_SCORE = 3
+
+FIGURE_WIDTH = 14.6
+FIGURE_HEIGHT = 8.2
+RENDER_DPI = 105
+OUTPUT_WIDTH = 1533
+OUTPUT_HEIGHT = 861
+
+LEAF_Y = 2.75
+LEVEL1_Y = 4.00
+LEVEL2_Y = 5.40
+ROOT_Y = 6.80
+LEFT_MARGIN = 1.85
+LEAF_GAP = 1.70
+
+LEAF_RADIUS = 0.22
+NODE_RADIUS = 0.19
+LETTER_SIZE = 16.0
+# The deck writes A C G T above the four scores so the columns line up.
+VECTOR_SPACING = 0.30
 VECTOR_SIZE = 13.0
-VECTOR_ABOVE = 0.40
-VECTOR_BELOW = 0.72
-NAME_BELOW = 0.38
+HEADER_SIZE = 13.0
+VECTOR_SIDE = 1.55
+VECTOR_HEADER_UP = 0.20
+VECTOR_VALUE_DOWN = 0.10
+LEAF_HEADER_DOWN = 0.55
+LEAF_VALUE_DOWN = 0.83
+# The root's vector has to clear the two edges leaving it, so it sits fully above.
+ROOT_HEADER_UP = 0.66
+ROOT_VALUE_UP = 0.38
+# The deck marks the smallest score in each vector red.
+DECK_RED = "#FF0000"
 
-ALIGN_LEFT = 1.70
-ALIGN_TOP = 6.45
-ALIGN_STEP = 0.36
-ALIGN_ADVANCE = 0.165
-ALIGN_SIZE = 15.0
-
-CAPTION_Y = 7.00
-LABEL_SIZE = 16.0
-WORK_TOP = 2.28
-WORK_STEP = 0.50
+CAPTION_Y = 7.86
+LABEL_SIZE = 17.0
+WORK_TOP = 1.62
+WORK_STEP = 0.42
 WORK_SIZE = 14.0
-SCORE_SIZE = 20.0
+SCORE_SIZE = 21.0
+SCORE_X = 1.10
+SCORE_Y = 6.95
 
 OPENING_MS = 3600
-LEAF_MS = 3200
-SYMBOL_MS = 2800
-PICK_MS = 3400
-BACK_MS = 2800
+LEAF_MS = 3400
+FIRST_SYMBOL_MS = 2200
+SYMBOL_MS = 1500
+PICK_MS = 3600
+BACK_MS = 2000
 FINAL_HOLD_MS = 5600
 
 INFINITY = float("inf")
 
 
-def leaf_strings() -> dict:
-    result = {}
+def leaf_names() -> "list[str]":
+    result = []
     index = 0
-    while index < len(LEAF_NAMES):
-        result[LEAF_NAMES[index]] = LEAF_STRINGS[index]
+    while index < len(LEAF_LETTERS):
+        result.append("L%d" % index)
         index = index + 1
     return result
 
 
-LEAF_OF = leaf_strings()
-LENGTH = len(LEAF_STRINGS[0])
+LEAVES = leaf_names()
+
+
+def letter_of() -> dict:
+    result = {}
+    index = 0
+    while index < len(LEAF_LETTERS):
+        result["L%d" % index] = LEAF_LETTERS[index]
+        index = index + 1
+    return result
+
+
+LETTER_OF = letter_of()
 
 
 def tree_edges() -> "list[tuple]":
     result = []
-    for parent in CHILDREN:
+    for parent in POSTORDER:
         for child in CHILDREN[parent]:
             result.append((parent, child))
     return result
@@ -116,17 +141,42 @@ def tree_edges() -> "list[tuple]":
 EDGES = tree_edges()
 
 
-def point_segment_distance(px: float, py: float, ax: float, ay: float,
-                           bx: float, by: float) -> float:
-    """Distance from a point to a segment, used to keep labels off the edges."""
-    dx = bx - ax
-    dy = by - ay
-    squared = dx * dx + dy * dy
-    if squared < 1e-12:
-        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
-    along = ((px - ax) * dx + (py - ay) * dy) / squared
-    along = min(max(along, 0.0), 1.0)
-    return ((px - (ax + along * dx)) ** 2 + (py - (ay + along * dy)) ** 2) ** 0.5
+def positions() -> dict:
+    """Leaves evenly spaced; every parent centred over its two children."""
+    result = {}
+    index = 0
+    while index < len(LEAVES):
+        result[LEAVES[index]] = (LEFT_MARGIN + index * LEAF_GAP, LEAF_Y)
+        index = index + 1
+    heights = {"n0": LEVEL1_Y, "n1": LEVEL1_Y, "n2": LEVEL1_Y, "n3": LEVEL1_Y,
+               "m0": LEVEL2_Y, "m1": LEVEL2_Y, "root": ROOT_Y}
+    for node in POSTORDER:
+        first = CHILDREN[node][0]
+        second = CHILDREN[node][1]
+        result[node] = ((result[first][0] + result[second][0]) / 2, heights[node])
+    return result
+
+
+POSITION = positions()
+
+
+def sides() -> dict:
+    """Where each node's score vector sits, following the deck's own figure.
+
+    Internal vectors go to the left of their node at the node's own height, the
+    root's sits above it, and the leaves carry theirs underneath. Keeping every
+    internal vector on the same side is what stops the two middle ones colliding.
+    """
+    result = {"root": "above"}
+    for node in POSTORDER:
+        if node != "root":
+            result[node] = "left"
+    for leaf in LEAVES:
+        result[leaf] = "below"
+    return result
+
+
+SIDE = sides()
 
 
 def mismatch(first: str, second: str) -> int:
@@ -137,33 +187,23 @@ def mismatch(first: str, second: str) -> int:
 
 def show(value: float) -> str:
     if value == INFINITY:
-        return "\u221e"
+        return "∞"
     return "%g" % value
 
 
-def leaf_vector(letter: str) -> dict:
-    """A leaf costs nothing for the letter it carries and is impossible otherwise."""
-    result = {}
-    for symbol in ALPHABET:
-        if symbol == letter:
-            result[symbol] = 0.0
-        else:
-            result[symbol] = INFINITY
-    return result
-
-
-def solve_column(column: int) -> "tuple[dict, dict, list]":
-    """Sankoff on one column: the score vectors, the winners, and the working.
-
-    scores[node][symbol] is the cost of the subtree at node given that node holds
-    symbol. winners[node][symbol][child] is the child symbol that achieved the
-    minimum, which is exactly what backtracking needs.
-    """
+def solve() -> "tuple[dict, dict, list]":
+    """Sankoff: the score vectors, the winning child symbols, and the working."""
     scores = {}
     winners = {}
-    for name in LEAF_NAMES:
-        scores[name] = leaf_vector(LEAF_OF[name][column])
-        winners[name] = {}
+    for leaf in LEAVES:
+        vector = {}
+        for symbol in ALPHABET:
+            if symbol == LETTER_OF[leaf]:
+                vector[symbol] = 0.0
+            else:
+                vector[symbol] = INFINITY
+        scores[leaf] = vector
+        winners[leaf] = {}
     working = []
     for node in POSTORDER:
         scores[node] = {}
@@ -197,38 +237,36 @@ def solve_column(column: int) -> "tuple[dict, dict, list]":
     return (scores, winners, working)
 
 
-SCORES, WINNERS, WORKING = solve_column(COLUMN)
+SCORES, WINNERS, WORKING = solve()
 
 
-def best_symbol_at(node: str, scores: dict) -> str:
-    """The cheapest symbol for a node, ties broken alphabetically."""
+def cheapest(node: str) -> str:
     best = INFINITY
     chosen = ""
     for symbol in ALPHABET:
-        if scores[node][symbol] < best:
-            best = scores[node][symbol]
+        if SCORES[node][symbol] < best:
+            best = SCORES[node][symbol]
             chosen = symbol
     return chosen
 
 
-ROOT_SYMBOL = best_symbol_at("root", SCORES)
+ROOT_SYMBOL = cheapest("root")
 COLUMN_SCORE = SCORES["root"][ROOT_SYMBOL]
 
 
 def backtrack() -> "list[tuple]":
-    """Root first, then each child takes the symbol that produced its parent's score."""
+    """Root first, then each child takes the symbol that gave its parent's score."""
+    taken = {"root": ROOT_SYMBOL}
     order = [("root", ROOT_SYMBOL)]
     pending = ["root"]
     while len(pending) > 0:
         node = pending.pop(0)
-        symbol = ""
-        for name, taken in order:
-            if name == node:
-                symbol = taken
         for child in CHILDREN[node]:
-            if child in LEAF_OF:
+            if child in LETTER_OF:
                 continue
-            order.append((child, WINNERS[node][symbol][child]))
+            symbol = WINNERS[node][taken[node]][child]
+            taken[child] = symbol
+            order.append((child, symbol))
             pending.append(child)
     return order
 
@@ -238,8 +276,8 @@ ASSIGNMENT_ORDER = backtrack()
 
 def full_assignment() -> dict:
     result = {}
-    for name in LEAF_NAMES:
-        result[name] = LEAF_OF[name][COLUMN]
+    for leaf in LEAVES:
+        result[leaf] = LETTER_OF[leaf]
     for node, symbol in ASSIGNMENT_ORDER:
         result[node] = symbol
     return result
@@ -248,78 +286,121 @@ def full_assignment() -> dict:
 ASSIGNMENT = full_assignment()
 
 
-def mutated_edges(assignment: dict) -> "list[tuple]":
+def mutated_edges() -> "list[tuple]":
     result = []
     for parent, child in EDGES:
-        if assignment[parent] != assignment[child]:
+        if ASSIGNMENT[parent] != ASSIGNMENT[child]:
             result.append((parent, child))
     return result
 
 
-MUTATED = mutated_edges(ASSIGNMENT)
+MUTATED = mutated_edges()
 
 
-def brute_force(column: int) -> int:
-    """Smallest number of mismatching edges over all assignments to three nodes."""
+def brute_force() -> int:
+    """Fewest mismatching edges over every assignment to the seven internal nodes."""
     best = 99
-    for first in ALPHABET:
-        for second in ALPHABET:
-            for third in ALPHABET:
-                trial = {"root": first, "left": second, "right": third}
-                for name in LEAF_NAMES:
-                    trial[name] = LEAF_OF[name][column]
-                total = 0
-                for parent, child in EDGES:
-                    total = total + mismatch(trial[parent], trial[child])
-                if total < best:
-                    best = total
+    counter = 0
+    total_trials = 4 ** len(POSTORDER)
+    while counter < total_trials:
+        trial = {}
+        for leaf in LEAVES:
+            trial[leaf] = LETTER_OF[leaf]
+        rest = counter
+        for node in POSTORDER:
+            trial[node] = ALPHABET[rest % 4]
+            rest = rest // 4
+        total = 0
+        for parent, child in EDGES:
+            total = total + mismatch(trial[parent], trial[child])
+        if total < best:
+            best = total
+        counter = counter + 1
     return best
+
+
+def point_segment_distance(px: float, py: float, ax: float, ay: float,
+                           bx: float, by: float) -> float:
+    """Distance from a point to a segment, used to keep labels off the edges."""
+    dx = bx - ax
+    dy = by - ay
+    squared = dx * dx + dy * dy
+    if squared < 1e-12:
+        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+    along = ((px - ax) * dx + (py - ay) * dy) / squared
+    along = min(max(along, 0.0), 1.0)
+    return ((px - (ax + along * dx)) ** 2 + (py - (ay + along * dy)) ** 2) ** 0.5
+
+
+def vector_left(node: str) -> float:
+    """Where a node's row of four scores starts."""
+    x, y = POSITION[node]
+    if SIDE[node] == "left":
+        centre = x - VECTOR_SIDE
+    elif SIDE[node] == "right":
+        centre = x + VECTOR_SIDE
+    else:
+        centre = x
+    return centre - 1.5 * VECTOR_SPACING
+
+
+def vector_rows(node: str) -> "tuple[float, float]":
+    """The y of the A C G T header and the y of the values beneath it."""
+    x, y = POSITION[node]
+    if SIDE[node] == "below":
+        return (y - LEAF_HEADER_DOWN, y - LEAF_VALUE_DOWN)
+    if SIDE[node] == "above":
+        return (y + ROOT_HEADER_UP, y + ROOT_VALUE_UP)
+    return (y + VECTOR_HEADER_UP, y - VECTOR_VALUE_DOWN)
 
 
 def verify() -> "list[str]":
     lines = []
 
-    for name in LEAF_NAMES:
-        assert len(LEAF_OF[name]) == LENGTH, "the strings must be aligned"
-    lines.append("%d aligned strings of length %d, from slide 179"
-                 % (len(LEAF_NAMES), LENGTH))
+    assert len(LEAVES) == 8, "this is the eight-leaf example"
+    for node in POSTORDER:
+        assert len(CHILDREN[node]) == 2, "the tree must be binary"
+    lines.append("balanced rooted tree, %d leaves and %d internal nodes"
+                 % (len(LEAVES), len(POSTORDER)))
 
-    column_total = 0
-    position = 0
-    while position < LENGTH:
-        scores, winners, working = solve_column(position)
-        chosen = best_symbol_at("root", scores)
-        value = scores["root"][chosen]
-        expected = brute_force(position)
-        assert value == expected, (
-            "position %d: the dynamic program says %g but brute force over all 64 "
-            "assignments says %d" % (position, value, expected))
-        column_total = column_total + int(value)
-        position = position + 1
-    lines.append("every one of the %d columns agrees with brute force over all 64 "
-                 "assignments" % LENGTH)
+    for node in POSTORDER:
+        got = []
+        for symbol in ALPHABET:
+            got.append(int(SCORES[node][symbol]))
+        assert tuple(got) == PUBLISHED_SCORES[node], (
+            "%s computes %s but slide 194 prints %s"
+            % (node, tuple(got), PUBLISHED_SCORES[node]))
+    lines.append("all %d score-vector entries match slide 194 exactly"
+                 % (len(POSTORDER) * len(ALPHABET)))
 
-    assert column_total == SLIDE_SCORE, (
-        "the columns total %d but slide 179 prints %d" % (column_total, SLIDE_SCORE))
-    lines.append("the columns total %d, matching slide 179" % column_total)
+    assert COLUMN_SCORE == PUBLISHED_SCORE, (
+        "the column scores %g but the slide says %d"
+        % (COLUMN_SCORE, PUBLISHED_SCORE))
+    assert ROOT_SYMBOL == PUBLISHED_ASSIGNMENT["root"], "the root should take C"
+    for node in POSTORDER:
+        assert ASSIGNMENT[node] == PUBLISHED_ASSIGNMENT[node], (
+            "%s is assigned %s but slide 198 prints %s"
+            % (node, ASSIGNMENT[node], PUBLISHED_ASSIGNMENT[node]))
+    lines.append("the score is %g and all %d ancestral letters match slide 198"
+                 % (COLUMN_SCORE, len(POSTORDER)))
 
-    # The animation walks one column, so that column has to be right on its own.
-    assert COLUMN_SCORE == brute_force(COLUMN), "the animated column disagrees"
+    expected = brute_force()
+    assert expected == COLUMN_SCORE, (
+        "brute force over all %d assignments says %d, not %g"
+        % (4 ** len(POSTORDER), expected, COLUMN_SCORE))
     counted = 0
     for parent, child in EDGES:
         counted = counted + mismatch(ASSIGNMENT[parent], ASSIGNMENT[child])
-    assert counted == COLUMN_SCORE, (
-        "backtracking produced %d mutations but the score is %g"
-        % (counted, COLUMN_SCORE))
-    lines.append("position %d scores %g, and the backtracked assignment achieves it "
-                 "with %d mutation" % (COLUMN + 1, COLUMN_SCORE, counted))
+    assert counted == COLUMN_SCORE, "the backtracked assignment misses the optimum"
+    lines.append("brute force over all %d internal assignments agrees, and the "
+                 "backtracked tree really has %d mutations"
+                 % (4 ** len(POSTORDER), counted))
 
-    # A unique answer keeps the backtracking honest: no arbitrary tie-breaking.
     ties = 0
     for symbol in ALPHABET:
         if SCORES["root"][symbol] == COLUMN_SCORE:
             ties = ties + 1
-    assert ties == 1, "the root should have a unique cheapest symbol, found %d" % ties
+    assert ties == 1, "the root's cheapest symbol should be unique"
     lines.append("the root's cheapest symbol %s is unique, so nothing is arbitrary"
                  % ROOT_SYMBOL)
 
@@ -328,74 +409,65 @@ def verify() -> "list[str]":
             rebuilt = 0.0
             for child in CHILDREN[node]:
                 winner = WINNERS[node][symbol][child]
-                rebuilt = rebuilt + (SCORES[child][winner]
-                                     + mismatch(winner, symbol))
+                rebuilt = rebuilt + SCORES[child][winner] + mismatch(winner, symbol)
             assert rebuilt == SCORES[node][symbol], (
                 "the recorded winners for s(%s, %s) do not rebuild its score"
                 % (node, symbol))
-    lines.append("every recorded minimum really rebuilds the score it belongs to")
+    lines.append("every recorded minimum rebuilds the score it belongs to")
 
-    for name in POSITIONS:
-        for other in POSITIONS:
-            if name == other:
-                continue
-            if abs(POSITIONS[name][1] - POSITIONS[other][1]) < 0.01:
-                gap = abs(POSITIONS[name][0] - POSITIONS[other][0])
-                assert gap > 1.3, ("%s and %s are only %.2f in apart on one row"
-                                   % (name, other, gap))
-    rows = {}
-    for node in POSITIONS:
-        if node in POSTORDER:
-            y = POSITIONS[node][1] + VECTOR_ABOVE
-        else:
-            y = POSITIONS[node][1] - VECTOR_BELOW
+    boxes = {}
+    for node in POSITION:
+        header_y, value_y = vector_rows(node)
         left = vector_left(node) - 0.5 * VECTOR_SPACING
-        rows[node] = (y, left, left + 4 * VECTOR_SPACING)
-    for node in rows:
-        for other in rows:
+        boxes[node] = (value_y, header_y, left, left + 4 * VECTOR_SPACING)
+    for node in boxes:
+        for other in boxes:
             if node == other:
                 continue
-            if abs(rows[node][0] - rows[other][0]) > 0.25:
+            same_band = (boxes[node][0] < boxes[other][1] + 0.14
+                         and boxes[other][0] < boxes[node][1] + 0.14)
+            if not same_band:
                 continue
-            clear = (rows[node][2] + 0.25 < rows[other][1]
-                     or rows[other][2] + 0.25 < rows[node][1])
-            assert clear, ("the score rows of %s and %s are not 0.25 in apart"
-                           % (node, other))
-    for node in rows:
-        y = rows[node][0]
+            clear = (boxes[node][3] + 0.16 < boxes[other][2]
+                     or boxes[other][3] + 0.16 < boxes[node][2])
+            assert clear, ("the score rows of %s and %s overlap" % (node, other))
+    for node in boxes:
         entry = 0
         while entry < 4:
             x = vector_left(node) + entry * VECTOR_SPACING
-            for parent, child in EDGES:
-                gap = point_segment_distance(x, y, POSITIONS[parent][0],
-                                             POSITIONS[parent][1],
-                                             POSITIONS[child][0],
-                                             POSITIONS[child][1])
-                assert gap > 0.16, ("%s's score row sits %.2f in from the %s-%s edge"
-                                    % (node, gap, parent, child))
+            for y in (boxes[node][0], boxes[node][1]):
+                for parent, child in EDGES:
+                    gap = point_segment_distance(x, y, POSITION[parent][0],
+                                                 POSITION[parent][1],
+                                                 POSITION[child][0],
+                                                 POSITION[child][1])
+                    assert gap > 0.15, (
+                        "%s's score row sits %.2f in from the %s-%s edge"
+                        % (node, gap, parent, child))
             entry = entry + 1
-    lines.append("no two rows of scores overlap, and none of them lands on an edge")
+    lines.append("no two score rows overlap and none of them lands on an edge")
 
-    assert POSITIONS["root"][1] + VECTOR_ABOVE + 0.2 < CAPTION_Y, (
+    assert POSITION["root"][1] + ROOT_HEADER_UP + 0.25 < CAPTION_Y, (
         "the root's vector runs into the caption")
-    assert POSITIONS["Chimp"][1] - VECTOR_BELOW - 0.2 > WORK_TOP, (
+    assert LEAF_Y - LEAF_VALUE_DOWN - 0.2 > WORK_TOP, (
         "the leaf vectors collide with the working")
-    assert WORK_TOP - 2 * WORK_STEP - 0.3 > 0.3, "the working runs off the bottom"
-    assert ALIGN_LEFT + LENGTH * ALIGN_ADVANCE < POSITIONS["Chimp"][0] - 1.0, (
-        "the alignment collides with the tree")
-    lines.append("tree, alignment and working all sit clear of each other")
+    assert WORK_TOP - 3 * WORK_STEP - 0.2 > 0.1, "the working runs off the bottom"
+    assert LEFT_MARGIN + (len(LEAVES) - 1) * LEAF_GAP + 0.4 < FIGURE_WIDTH, (
+        "the tree runs off the right")
+    lines.append("tree spans %.2f to %.2f in, clear of the caption and the working"
+                 % (LEFT_MARGIN, LEFT_MARGIN + (len(LEAVES) - 1) * LEAF_GAP))
     return lines
 
 
 def base_frame(duration: int) -> dict:
-    return {"vectors": set(), "focus_node": "", "focus_symbol": "", "lines": [],
-            "assigned": {}, "mutations": [], "caption": "", "score_shown": False,
-            "closing": "", "duration_ms": duration}
+    return {"vectors": set(), "ready": {}, "focus_node": "", "focus_symbol": "",
+            "lines": [], "assigned": {}, "mutations": [], "caption": "",
+            "score_shown": False, "minima": False, "duration_ms": duration}
 
 
-def candidate_line(term: dict, symbol: str) -> "list[tuple]":
-    """min( 0+0, inf+1, inf+1, inf+1 ) = 0, with the winning term picked out."""
-    pieces = [("from %-5s  " % term["child"], INK), ("min( ", DIM)]
+def candidate_line(term: dict) -> "list[tuple]":
+    """min( inf+0, 0+1, inf+1, inf+1 ), with the winning term picked out."""
+    pieces = [("min( ", DIM)]
     index = 0
     while index < len(term["candidates"]):
         candidate = term["candidates"][index]
@@ -408,8 +480,29 @@ def candidate_line(term: dict, symbol: str) -> "list[tuple]":
         pieces.append(("%s+%d" % (show(candidate["score"]), candidate["cost"]),
                        colour))
         index = index + 1
-    pieces.append((" )  =  ", DIM))
-    pieces.append((show(term["best"]), GREEN))
+    pieces.append((" )", DIM))
+    return pieces
+
+
+def working_line(item: dict) -> "list[tuple]":
+    """One whole line: s(k) = min(...) + min(...) = a + b = total."""
+    pieces = [("s(%s)  =  " % item["symbol"], INK)]
+    index = 0
+    while index < len(item["terms"]):
+        if index > 0:
+            pieces.append(("  +  ", DIM))
+        for piece in candidate_line(item["terms"][index]):
+            pieces.append(piece)
+        index = index + 1
+    pieces.append(("  =  ", DIM))
+    index = 0
+    while index < len(item["terms"]):
+        if index > 0:
+            pieces.append((" + ", DIM))
+        pieces.append((show(item["terms"][index]["best"]), GREEN))
+        index = index + 1
+    pieces.append(("  =  ", DIM))
+    pieces.append((show(item["total"]), BLUE))
     return pieces
 
 
@@ -417,51 +510,60 @@ def build_specs() -> "list[dict]":
     specs = []
 
     opening = base_frame(OPENING_MS)
-    opening["caption"] = ("Small parsimony solves one column at a time, so follow "
-                          "position %d" % (COLUMN + 1))
+    opening["caption"] = ("Small parsimony solves one column of the alignment at a "
+                          "time, so this is one column on eight species")
     specs.append(opening)
 
+    ready = {}
     leaves = base_frame(LEAF_MS)
-    for name in LEAF_NAMES:
-        leaves["vectors"].add(name)
-    leaves["caption"] = ("A leaf costs nothing for the letter it carries, and is "
+    for leaf in LEAVES:
+        leaves["vectors"].add(leaf)
+        ready[leaf] = list(ALPHABET)
+    leaves["ready"] = dict(ready)
+    leaves["minima"] = True
+    leaves["caption"] = ("A leaf costs nothing for the letter it carries and is "
                          "impossible for the other three")
     specs.append(leaves)
 
-    shown = set()
-    for name in LEAF_NAMES:
-        shown.add(name)
-
+    shown = set(LEAVES)
+    lines_so_far = []
+    current_node = ""
     for item in WORKING:
-        frame = base_frame(SYMBOL_MS)
+        if item["node"] != current_node:
+            current_node = item["node"]
+            lines_so_far = []
+            ready[current_node] = []
+        lines_so_far.append(working_line(item))
+        ready[current_node].append(item["symbol"])
+        if item["node"] == POSTORDER[0]:
+            duration = FIRST_SYMBOL_MS
+        else:
+            duration = SYMBOL_MS
+        frame = base_frame(duration)
         frame["vectors"] = set(shown)
         frame["vectors"].add(item["node"])
+        frame["ready"] = {}
+        for node in ready:
+            frame["ready"][node] = list(ready[node])
         frame["focus_node"] = item["node"]
         frame["focus_symbol"] = item["symbol"]
-        rows = []
-        for term in item["terms"]:
-            rows.append(candidate_line(term, item["symbol"]))
-        summary = [("s(%s, %s)  =  " % (item["node"], item["symbol"]), INK)]
-        index = 0
-        while index < len(item["terms"]):
-            if index > 0:
-                summary.append(("  +  ", DIM))
-            summary.append((show(item["terms"][index]["best"]), GREEN))
-            index = index + 1
-        summary.append(("  =  ", DIM))
-        summary.append((show(item["total"]), BLUE))
-        rows.append(summary)
-        frame["lines"] = rows
+        frame["lines"] = list(lines_so_far)
         frame["caption"] = ("Each child contributes its cheapest option, plus 1 if "
                             "that option differs")
         specs.append(frame)
         if item["symbol"] == ALPHABET[len(ALPHABET) - 1]:
             shown.add(item["node"])
 
+    settled = {}
+    for node in ready:
+        settled[node] = list(ready[node])
+
     pick = base_frame(PICK_MS)
     pick["vectors"] = set(shown)
+    pick["ready"] = dict(settled)
     pick["focus_node"] = "root"
     pick["focus_symbol"] = ROOT_SYMBOL
+    pick["minima"] = True
     pick["score_shown"] = True
     pick["caption"] = ("The root's smallest score is %g, so this column costs %g"
                        % (COLUMN_SCORE, COLUMN_SCORE))
@@ -472,155 +574,125 @@ def build_specs() -> "list[dict]":
         assigned[node] = symbol
         frame = base_frame(BACK_MS)
         frame["vectors"] = set(shown)
+        frame["ready"] = dict(settled)
         frame["assigned"] = dict(assigned)
         frame["focus_node"] = node
         frame["focus_symbol"] = symbol
+        frame["minima"] = True
         frame["score_shown"] = True
         if node == "root":
             frame["caption"] = "Backtrack: the root takes %s" % symbol
         else:
-            parent = ""
-            for candidate in CHILDREN:
-                if node in CHILDREN[candidate]:
-                    parent = candidate
-            frame["caption"] = ("%s takes the symbol that gave %s its score: %s"
-                                % (node, parent, symbol))
+            frame["caption"] = ("Each node takes the symbol that gave its parent "
+                                "its score: %s here" % symbol)
         specs.append(frame)
 
     final = base_frame(FINAL_HOLD_MS)
     final["vectors"] = set(shown)
+    final["ready"] = dict(settled)
     final["assigned"] = dict(assigned)
     final["mutations"] = list(MUTATED)
+    final["minima"] = True
     final["score_shown"] = True
-    final["caption"] = ("One mutation explains position %d, and the other columns "
-                        "add up the same way" % (COLUMN + 1))
-    final["closing"] = ("The whole alignment needs %d mutations" % SLIDE_SCORE)
+    final["caption"] = ("%d mutations explain this column, and every other column "
+                        "is solved the same way" % int(COLUMN_SCORE))
     specs.append(final)
     return specs
 
 
-def draw_alignment(axis: "plt.Axes") -> None:
-    """The four strings, with the animated column boxed."""
+def draw_vector(axis: "plt.Axes", node: str, ready: "list[str]", focus: str,
+                minima: bool) -> None:
+    """A C G T on one row with the four scores directly beneath, deck style."""
+    header_y, value_y = vector_rows(node)
+    smallest = INFINITY
+    for symbol in ready:
+        if SCORES[node][symbol] < smallest:
+            smallest = SCORES[node][symbol]
     index = 0
-    while index < len(LEAF_NAMES):
-        name = LEAF_NAMES[index]
-        y = ALIGN_TOP - index * ALIGN_STEP
-        axis.text(ALIGN_LEFT - 0.16, y, name, fontsize=NAME_SIZE, color=DIM,
-                  ha="right", va="center", fontproperties=OPTIMA, zorder=5)
-        position = 0
-        while position < LENGTH:
-            if position == COLUMN:
-                colour = INK
-                font = MONO_BOLD
-            else:
-                colour = FAINT
-                font = MONO
-            axis.text(ALIGN_LEFT + (position + 0.5) * ALIGN_ADVANCE, y,
-                      LEAF_OF[name][position], fontsize=ALIGN_SIZE, color=colour,
-                      ha="center", va="center", fontproperties=font, zorder=5)
-            position = position + 1
-        index = index + 1
-    box = patches.Rectangle(
-        (ALIGN_LEFT + COLUMN * ALIGN_ADVANCE - 0.01,
-         ALIGN_TOP - (len(LEAF_NAMES) - 1) * ALIGN_STEP - 0.17),
-        ALIGN_ADVANCE + 0.02, (len(LEAF_NAMES) - 1) * ALIGN_STEP + 0.34,
-        facecolor="none", edgecolor=BLUE, linewidth=1.2, zorder=6)
-    axis.add_patch(box)
-
-
-def vector_left(node: str) -> float:
-    """Where a node's row of scores starts."""
-    return (POSITIONS[node][0] + VECTOR_SHIFT.get(node, 0.0)
-            - 1.5 * VECTOR_SPACING)
-
-
-def draw_partial_vector(axis: "plt.Axes", node: str, y: float, ready: "list[str]",
-                        focus_symbol: str) -> None:
-    """A node's four scores, with the ones not computed yet left as dots."""
-    x = vector_left(node)
-    for symbol in ALPHABET:
+    while index < len(ALPHABET):
+        symbol = ALPHABET[index]
+        x = vector_left(node) + index * VECTOR_SPACING
+        if symbol == focus:
+            head_colour = BLUE
+        else:
+            head_colour = INK
+        axis.text(x, header_y, symbol, fontsize=HEADER_SIZE, color=head_colour,
+                  ha="center", va="center", fontproperties=MONO_BOLD, zorder=6)
+        complete = len(ready) == len(ALPHABET)
         if symbol in ready:
-            if symbol == focus_symbol:
+            if complete and SCORES[node][symbol] == smallest:
+                colour = DECK_RED
+                font = MONO_BOLD
+            elif symbol == focus:
                 colour = BLUE
                 font = MONO_BOLD
             else:
-                colour = DIM
+                colour = INK
                 font = MONO
-            text = "%s %s" % (symbol, show(SCORES[node][symbol]))
+            text = show(SCORES[node][symbol])
         else:
             colour = FAINT
             font = MONO
-            text = "%s ." % symbol
-        axis.text(x, y, text, fontsize=VECTOR_SIZE, color=colour, ha="center",
-                  va="center", fontproperties=font, zorder=6)
-        x = x + VECTOR_SPACING
-
-
-def symbols_ready(node: str, focus_node: str, focus_symbol: str) -> "list[str]":
-    """Which of a node's four scores have been computed by this frame."""
-    if node != focus_node:
-        return list(ALPHABET)
-    result = []
-    for symbol in ALPHABET:
-        result.append(symbol)
-        if symbol == focus_symbol:
-            return result
-    return result
+            text = "."
+        axis.text(x, value_y, text, fontsize=VECTOR_SIZE, color=colour,
+                  ha="center", va="center", fontproperties=font, zorder=6)
+        index = index + 1
 
 
 def draw_tree(axis: "plt.Axes", spec: dict) -> None:
     for parent, child in EDGES:
-        start = POSITIONS[parent]
-        end = POSITIONS[child]
+        start = POSITION[parent]
+        end = POSITION[child]
         if (parent, child) in spec["mutations"]:
             colour = RED
             width = 2.6
         else:
             colour = INK
-            width = 1.8
+            width = 1.7
         axis.plot([start[0], end[0]], [start[1], end[1]], color=colour,
                   linewidth=width, solid_capstyle="round", zorder=3)
 
-    for name in LEAF_NAMES:
-        position = POSITIONS[name]
+    for leaf in LEAVES:
+        position = POSITION[leaf]
         disc = patches.Circle(position, LEAF_RADIUS, facecolor=DISC,
                               edgecolor="none", zorder=5)
         axis.add_patch(disc)
-        axis.text(position[0], position[1], LEAF_OF[name][COLUMN],
-                  fontsize=LETTER_SIZE, color="white", ha="center", va="center",
-                  fontproperties=MONO_BOLD, zorder=6)
-        axis.text(position[0], position[1] - NAME_BELOW, name, fontsize=NAME_SIZE,
-                  color=DIM, ha="center", va="center", fontproperties=OPTIMA,
+        axis.text(position[0], position[1], LETTER_OF[leaf], fontsize=LETTER_SIZE,
+                  color="white", ha="center", va="center", fontproperties=MONO_BOLD,
                   zorder=6)
-        if name in spec["vectors"]:
-            draw_partial_vector(axis, name, position[1] - VECTOR_BELOW,
-                                list(ALPHABET), "")
+        if leaf in spec["vectors"]:
+            draw_vector(axis, leaf, spec["ready"].get(leaf, []), "", spec["minima"])
 
     for node in POSTORDER:
-        position = POSITIONS[node]
+        position = POSITION[node]
         if node in spec["assigned"]:
             face = INK
         else:
             face = "#FFFFFF"
+        if node == spec["focus_node"] and node not in spec["assigned"]:
+            outline = BLUE
+            thickness = 2.4
+        else:
+            outline = INK
+            thickness = 1.4
         disc = patches.Circle(position, NODE_RADIUS, facecolor=face,
-                              edgecolor=INK, linewidth=1.4, zorder=5)
+                              edgecolor=outline, linewidth=thickness, zorder=5)
         axis.add_patch(disc)
         if node in spec["assigned"]:
             axis.text(position[0], position[1], spec["assigned"][node],
                       fontsize=LETTER_SIZE - 2, color="white", ha="center",
                       va="center", fontproperties=MONO_BOLD, zorder=6)
         if node in spec["vectors"]:
-            ready = symbols_ready(node, spec["focus_node"], spec["focus_symbol"])
             if node == spec["focus_node"]:
                 focus = spec["focus_symbol"]
             else:
                 focus = ""
-            draw_partial_vector(axis, node, position[1] + VECTOR_ABOVE, ready, focus)
+            draw_vector(axis, node, spec["ready"].get(node, []), focus,
+                        spec["minima"])
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
     figure, axis = new_axes(FIGURE_WIDTH, FIGURE_HEIGHT, RENDER_DPI)
-    draw_alignment(axis)
     draw_tree(axis, spec)
 
     if len(spec["lines"]) > 0:
@@ -640,15 +712,9 @@ def draw_frame(spec: dict, output_path: str) -> None:
             index = index + 1
 
     if spec["score_shown"]:
-        axis.text(ALIGN_LEFT + LENGTH * ALIGN_ADVANCE / 2,
-                  ALIGN_TOP - len(LEAF_NAMES) * ALIGN_STEP - 0.45,
-                  "score %g" % COLUMN_SCORE, fontsize=SCORE_SIZE, color=INK,
-                  ha="center", va="center", fontproperties=MONO_BOLD, zorder=7)
-
-    if spec["closing"] != "":
-        axis.text(FIGURE_WIDTH / 2, WORK_TOP - 0.1, spec["closing"],
-                  fontsize=LABEL_SIZE, color=INK, ha="center", va="center",
-                  fontproperties=OPTIMA_ITALIC, zorder=7)
+        axis.text(SCORE_X, SCORE_Y, "score %g" % COLUMN_SCORE, fontsize=SCORE_SIZE,
+                  color=INK, ha="left", va="center", fontproperties=MONO_BOLD,
+                  zorder=7)
 
     if spec["caption"] != "":
         axis.text(FIGURE_WIDTH / 2, CAPTION_Y, spec["caption"], fontsize=LABEL_SIZE,

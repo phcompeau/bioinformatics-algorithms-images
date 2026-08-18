@@ -103,16 +103,20 @@ COUNTER_Y = 6.88
 
 # The recurrence sits under the grid, laid out like the book's figure:
 # "s_{i,j} = max {" then one line per incoming edge, then aligned = columns.
-PREFIX_RIGHT_X = 1.48
-BRACE_X = 1.62
-TERM_X = 1.82
-COL1_X = 6.80
-COL2_X = 7.80
-BLOCK_MIDDLE_Y = 0.80
-BLOCK_LINE_Y = [1.05, 0.55]
-PREFIX_SIZE = 13.0
-TERM_SIZE = 11.0
-COLUMN_SIZE = 12.0
+# Phillip: the block should be set larger, about as wide as the diagram above it,
+# so the terms are shortened (the grid already shows which edge is meant) and the
+# type is set up to match the node labels.
+PREFIX_RIGHT_X = 3.36
+BRACE_X = 3.52
+TERM_X = 3.72
+COL1_X = 6.42
+COL2_X = 8.90
+BLOCK_MIDDLE_Y = 0.82
+BLOCK_LINE_Y = [1.12, 0.52]
+PREFIX_SIZE = 17.0
+TERM_SIZE = 14.0
+COLUMN_SIZE = 14.0
+BRACE_SIZE = 48.0
 
 MOTION_MS = 110
 READING_BASE_MS = 500
@@ -414,9 +418,7 @@ def term_text(target: "tuple[int, int]", direction: str) -> str:
         kind = "vertical"
     else:
         kind = "horizontal"
-    return (r"$s_{%d,%d}$ + weight of the %s edge from (%d, %d) to (%d, %d)"
-            % (came_from[0], came_from[1], kind, came_from[0], came_from[1],
-               target[0], target[1]))
+    return r"$s_{%d,%d}$ + %s edge" % (came_from[0], came_from[1], kind)
 
 
 def term_line(target: "tuple[int, int]", direction: str, color: str) -> dict:
@@ -426,8 +428,8 @@ def term_line(target: "tuple[int, int]", direction: str, color: str) -> dict:
     weight = edge_weight(came_from, target)
     return {
         "text": term_text(target, direction),
-        "col1": "= %d + %d" % (base, weight),
-        "col2": "= %d" % (base + weight),
+        "col1": "= %d + %d = %d" % (base, weight, base + weight),
+        "col2": "",
         "color": color,
     }
 
@@ -440,7 +442,7 @@ def draw_block(axis: "plt.Axes", block: dict) -> None:
                   fontsize=PREFIX_SIZE, color=TEXT_DARK, ha="right", va="center",
                   fontproperties=OPTIMA)
     if block["brace"]:
-        axis.text(BRACE_X, BLOCK_MIDDLE_Y, "{", fontsize=38, color=TEXT_DARK,
+        axis.text(BRACE_X, BLOCK_MIDDLE_Y, "{", fontsize=BRACE_SIZE, color=TEXT_DARK,
                   ha="center", va="center", fontproperties=OPTIMA)
     if len(lines) == 1:
         positions = [BLOCK_MIDDLE_Y]
@@ -452,10 +454,14 @@ def draw_block(axis: "plt.Axes", block: dict) -> None:
         y = positions[index]
         axis.text(TERM_X, y, line["text"], fontsize=TERM_SIZE, color=line["color"],
                   ha="left", va="center", fontproperties=OPTIMA)
-        axis.text(COL1_X, y, line["col1"], fontsize=COLUMN_SIZE, color=line["color"],
-                  ha="left", va="center", fontproperties=OPTIMA)
-        axis.text(COL2_X, y, line["col2"], fontsize=COLUMN_SIZE, color=line["color"],
-                  ha="left", va="center", fontproperties=OPTIMA)
+        if line["col1"] != "":
+            axis.text(COL1_X, y, line["col1"], fontsize=COLUMN_SIZE,
+                      color=line["color"], ha="left", va="center",
+                      fontproperties=OPTIMA)
+        if line["col2"] != "":
+            axis.text(COL2_X, y, line["col2"], fontsize=COLUMN_SIZE,
+                      color=line["color"], ha="left", va="center",
+                      fontproperties=OPTIMA)
         index = index + 1
 
 
@@ -605,9 +611,9 @@ def build_fill_specs() -> "list[dict]":
         "prefix": r"$s_{i,j}$ = max",
         "brace": True,
         "lines": [
-            {"text": r"$s_{i-1,j}$ + weight of the vertical edge into ($i$, $j$)",
+            {"text": r"$s_{i-1,j}$ + vertical edge",
              "col1": "", "col2": "", "color": GREEN},
-            {"text": r"$s_{i,j-1}$ + weight of the horizontal edge into ($i$, $j$)",
+            {"text": r"$s_{i,j-1}$ + horizontal edge",
              "col1": "", "col2": "", "color": BLUE},
         ],
     }
@@ -821,7 +827,19 @@ def verify_layout() -> "list[str]":
     assert highest < grid_bottom - 0.1, (
         "recurrence block at %.2f overlaps the grid bottom at %.2f"
         % (highest, grid_bottom))
-    lines.append("widest recurrence block fits, no collisions, clear of the grid")
+    left_edge = 10.0
+    for box in boxes:
+        if box[1] < left_edge:
+            left_edge = box[1]
+    grid_left = node_xy(0, 0)[0] - NODE_RADIUS
+    grid_right = node_xy(0, COLS - 1)[0] + NODE_RADIUS
+    block_width = right_edge - left_edge
+    grid_width = grid_right - grid_left
+    assert abs(block_width - grid_width) < 0.9, (
+        "the block is %.2f in wide but the grid is %.2f in: they should match"
+        % (block_width, grid_width))
+    lines.append("widest recurrence block is %.2f in wide against the grid's %.2f in, "
+                 "no collisions, clear of the grid" % (block_width, grid_width))
 
     assert len(LOSING_EDGES) == 16, "expected 16 discarded edges, got %d" % len(LOSING_EDGES)
     total_edges = ROWS * (COLS - 1) + (ROWS - 1) * COLS

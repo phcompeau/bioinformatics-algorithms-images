@@ -20,11 +20,15 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Building the suffix array (Chapter 9, BWT) | [`images/BWT/suffix_array_construction.gif`](../images/BWT/suffix_array_construction.gif) | `suffix_array.py` |
 | UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py basic` |
 | UPGMA and the weighted average (Chapter 7, Evolution) | [`images/Evolution/upgma_weighted_average.gif`](../images/Evolution/upgma_weighted_average.gif) | `upgma.py quiz` |
-| Neighbor-joining (Chapter 7, Evolution) | [`images/Evolution/neighbor_joining.gif`](../images/Evolution/neighbor_joining.gif) | `neighbor_joining.py` |
 | Backward search with the BWT (Chapter 9, BWT) | [`images/BWT/bwt_pattern_matching.gif`](../images/BWT/bwt_pattern_matching.gif) | `bwt_pattern_matching.py` |
 | 2-break sorting on the breakpoint graph (Chapter 6, Rearrangements) | [`images/Rearrangements/breakpoint_graph_2break.gif`](../images/Rearrangements/breakpoint_graph_2break.gif) | `breakpoint_graph.py` |
 | Small parsimony (Chapter 7, Evolution) | [`images/Evolution/small_parsimony.gif`](../images/Evolution/small_parsimony.gif) | `small_parsimony.py` |
-| Linear-space alignment by middle nodes (Chapter 5, Alignment) | [`images/Alignment/middle_node_alignment.gif`](../images/Alignment/middle_node_alignment.gif) | `middle_node.py` |
+
+Two animations were dropped after review: neighbor-joining, because D, D*, the
+total distances, the limb formula and the matrix recomputation are too much to ask
+of one figure, and linear-space alignment, which wants narration and a moving path
+rather than a loop. Both generators are kept in the local skill directory in case
+they come back as narrated video.
 
 `make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
 palette, fonts, easing, and measured monospace metrics shared by the
@@ -123,7 +127,9 @@ python3 manhattan_dp.py fill      ../images/Alignment/manhattan_dp_fill.gif
 python3 manhattan_dp.py backtrack ../images/Alignment/manhattan_dp_backtrack.gif
 ```
 
-Both animations share one DP table, so they cannot disagree with each other.
+Both animations share one DP table, so they cannot disagree with each other. The
+recurrence block under the grid is set about as wide as the grid itself, in type
+close to the node labels, and a layout check measures both and asserts they match.
 
 ### Suggested figure captions
 
@@ -163,7 +169,7 @@ the closest match on macOS.
 The 14 suffixes are inserted longest first. For each one, the nodes that already exist
 light up blue as the suffix threads through them, then the nodes that are new
 appear one letter at a time in green, ending in a dark numbered leaf. The text
-runs large across the top of the frame with the suffix being inserted picked out
+runs across the top of the frame at 30 pt with the suffix being inserted picked out
 inside it: everything before it stays faint, the part that already had a path is
 blue, and the part being added right now is green. There is only ever one copy of
 the string on screen, so nothing has to be matched up between two places. Nodes
@@ -219,9 +225,15 @@ The 14 cyclic rotations of `panamabananas$` appear one at a time, sort into
 place, and then the last column lifts out in bold as the rest of the matrix dims,
 spelling `BWT(Text)` along the bottom.
 
+The text also rides beside the matrix as a **ring**, which is what makes "cyclic"
+something to look at rather than a word: each rotation is one starting point on the
+ring, and the letter it starts from lights up in the deck's red as its row appears.
+
 Rows cross each other while sorting, so each row fades while it is in flight and
 sharpens again once it lands; at full opacity the moving rows pile into an
-illegible smear. The stagger sends them in a wave rather than all at once.
+illegible smear. The stagger sends them in a wave rather than all at once. Once
+they settle, every row is trimmed to the shortest prefix that holds its place, so
+how few letters fix the order is visible.
 
 ```
 cd animations
@@ -272,21 +284,19 @@ suffix appears with the position it starts at, the suffixes sort, and the column
 of positions left behind is the suffix array. Rows fade while they are in flight,
 since at full opacity crossing rows smear together.
 
-Two things make the sort more than an assertion. First, once the rows settle, the
-animation walks the neighbouring pairs and shows that each pair is already decided
-at the first letter where the two suffixes differ, with that letter in blue.
-Then it trims every row to the shortest prefix that holds its place, and the block
-is still visibly in order: 32 of the 105 characters on screen settle the whole
-sort, at most 4 in any row. Second, the hand-off to "these positions are the
-suffix array" now runs slowly, and the text itself sits at the bottom with a ruler
-of positions under it, so each number being read off the block lights up as a
-place inside `panamabananas$` rather than as a bare digit.
+Two things make the sort more than an assertion. First, once the rows settle,
+every row is trimmed to the shortest prefix that holds its place and the block is
+still visibly in order: 32 of the 105 characters on screen settle the whole sort,
+at most 4 in any row. Second, the hand-off to "these positions are the suffix
+array" runs slowly, the whole suffix lights up as its starting position is read
+off, and the text itself sits at the bottom with a ruler of positions under it, so
+each number lands as a place inside `panamabananas$` rather than as a bare digit.
 
 The array is asserted against the left-to-right leaf order of the suffix tree,
 which was itself verified against the published figure, so the two Chapter 9
 animations cross-check each other. A further check truncates every suffix to its
 own minimal prefix and asserts the order is unchanged, which is exactly the claim
-the new phase makes on screen.
+the trimmed frame makes on screen.
 
 ## UPGMA
 
@@ -353,60 +363,15 @@ python3 upgma.py quiz ../images/Evolution/upgma_weighted_average.gif
 > cluster it came from is: here it gives 16 rather than 17, because `{i, k, l}`
 > speaks for three species and `j` for one.
 
-## Neighbor-joining
-
-`neighbor_joining.gif`, about 61 s, following Evolutionary_Trees.pptx slides
-145-171. Both matrices are on screen the whole time: D with its TotalDistance
-column on the left, D* on the right, and D* fills in one entry at a time rather
-than arriving finished. Every number is worked out in the panel underneath:
-
-- **TotalDistance**, one taxon at a time, as the sum of its own row with each
-  term written out.
-- **D\*(i,j)**, one entry at a time, as `(n-2) D(i,j) - TotalDistance(i) -
-  TotalDistance(j)` with the real numbers substituted and the two totals in red.
-- **The limb lengths**, from `delta = (TotalDistance(i) - TotalDistance(j)) /
-  (n-2)`, then `limb(i) = (D(i,j) + delta) / 2` and `limb(j) = (D(i,j) - delta) /
-  2`. The formula was missing entirely before.
-- **The reduced matrix**, one new entry at a time, each from the three old
-  distances it replaces.
-
-With three taxa left every entry of D* ties, which is the base case the deck flags
-as "they're all neighbors", and its three limbs come straight out of the
-three-point formula. The second round runs at 70% of the first round's dwell,
-since by then the moves are repetition. The last frame brings the original D back
-so the finished tree can be checked against it by eye.
-
-The deck shows D as a picture, but its `TotalDistance` column is text, and that
-column pins the matrix down uniquely; the recovered matrix is then confirmed by
-reproducing all sixteen entries of the printed D*. Limb lengths are asserted
-against slide 171, and the finished tree is asserted to reproduce every distance
-in D, which is what additivity means. Two further checks cover the working now
-shown on screen: every total really is the sum of its own row, and the two limb
-lengths add up to D(i,j) and differ by delta, which is the pair of equations they
-come from.
-
-```
-cd animations
-python3 neighbor_joining.py ../images/Evolution/neighbor_joining.gif
-```
-
-### Suggested figure caption
-
-> **Neighbor-joining.** The raw distance matrix can mislead: the closest two
-> species need not be neighbors in the tree. Subtracting each row's total distance
-> corrects for that, and the smallest entry of the resulting matrix D* always
-> identifies a true pair of neighbors. Joining them, splitting their distance, and
-> recursing on a smaller matrix reconstructs the tree, which for an additive
-> matrix reproduces every original distance exactly.
-
-## Four more
+## Three more
 
 **Backward search** (`bwt_pattern_matching.gif`, 25 s). Only the first and last
 columns are known; the rest of each row is a row of question marks. Matching
 `ana` right to left, the rows whose last column carries the next symbol turn red,
-and the first-last property maps them onto a contiguous band. Each step now says
-what it is doing: how many rows of the band end in the symbol, and that those same
-symbols start the new band. Three steps leave a
+and the first-last property maps them onto a contiguous band. Each step says what
+it is doing, and names the property doing the work: how many rows of the band end
+in the symbol, and that by last-to-first those same symbols start the new band.
+Three steps leave a
 band of three rows, and the suffix array turns those into positions 1, 7 and 9.
 Checked by asserting each band holds exactly the rows starting with the matched
 suffix, and that the positions agree with a brute-force scan of the text.
@@ -416,25 +381,37 @@ in red and Q's in blue on the same block ends, so every node has one edge of eac
 colour and the graph splits into alternating cycles. Each 2-break swaps two red
 edges for two others on the same four ends and splits a cycle.
 
-The first version of this animation was pretty and unreadable: nothing said which
-colour was which, the cycles it is all about were invisible, and the count at the
-bottom was a bare number. Now **every node wears the colour of the cycle it
-belongs to**, so a 2-break splitting one cycle in two is one colour becoming two,
-which is the whole idea made visible. A legend names red as P (the genome being
-sorted) and blue as Q (the target). Each step marks the two doomed red edges
-before cutting them and then says what the cut did to the count. Red and blue are
-each offset slightly to their own side of the line, because they land on the same
-pair of nodes wherever P already agrees with Q, and by the last frame that is
-every edge: without the offset the finished graph looks like P alone.
+The first version was pretty and unreadable: nothing said which colour was which
+and the cycles it is all about were invisible. Three things fixed it.
+
+**Every node wears the colour of the cycle it belongs to**, so a 2-break splitting
+one cycle in two is one colour becoming two, which is the whole idea made visible.
+
+**The genomes are drawn as blocks** above the graph, P on top and Q beneath, each
+block an arrow pointing the way it is read. P's row is recovered from its red edges
+after every 2-break, so the row visibly turns into Q: `(+1 -2 -3 +4)` becomes
+`(+1 +2 -3 +4)` becomes `(+1 +2 +3 +4)`. The row labels double as the legend, which
+is what let the separate legend and all the per-step captions go: they ran wider
+than the figure and the picture says it better.
+
+**Red and blue are each offset** slightly to their own side of the line, because
+they land on the same pair of nodes wherever P already agrees with Q, and by the
+last frame that is every edge: without the offset the finished graph looks like P
+alone.
+
+The closing line says only what the animation shows, that two 2-breaks turn P into
+Q. It deliberately does not claim the lower bound: this run agrees with blocks
+minus cycles, and the code checks that it does, but one worked example is not a
+proof and the frame should not imply otherwise.
 
 Checked by asserting the graph is 2-regular in each colour, every 2-break raises
 the count by exactly one, the number of 2-breaks equals blocks minus starting
 cycles, and P finishes identical to Q.
 
-**Small parsimony** (`small_parsimony.gif`, 58 s). The four species from slide 179
-on the same tree. Because each alignment column is solved on its own, this
-animation follows **one** column all the way through instead of skating over all
-ten, and shows every number:
+**Small parsimony** (`small_parsimony.gif`, 75 s). This is the deck's own worked
+example from slides 190-198: **eight** leaves carrying one column, `C C A C G G T
+C`, on a balanced rooted tree. Because each alignment column is solved on its own,
+one column is the whole problem, and every number in it is shown:
 
 - Each leaf's score vector: 0 for the letter it carries, infinite for the other
   three.
@@ -447,34 +424,18 @@ ten, and shows every number:
   symbol that produced its parent's score, and the one edge carrying a mutation
   turns red.
 
-Position 5 was chosen because its answer is unique, so nothing has to be waved
-through as an arbitrary tie-break. Every column's score is checked against a
-brute-force search over all 64 assignments to the three internal nodes, the
-backtracked assignment is checked to achieve the minimum, the recorded winners are
-checked to rebuild the scores they belong to, and the ten columns are checked to
-total the 8 printed on the slide. So the assignment on the slide was already
-optimal.
+Each node's scores are laid out the way the deck lays them out: a header row
+`A C G T` with the four values directly beneath, so the columns line up instead of
+running together on one line. The smallest value in each finished vector is marked
+red, again as the deck does.
 
-**Linear-space alignment** (`middle_node_alignment.gif`, 43 s). Instead of storing
-the whole table, sweep the middle column of a rectangle to find the one node where
-an optimal path crosses it, then recurse on the two rectangles either side.
-
-The two scores the method rests on are now the point of the animation. Columns
-sweep in from the left carrying **fromSource** (blue) and back in from the right
-carrying **toSink** (green), one column of memory at a time, which is the whole
-reason the method is linear-space. They stop on the middle column, both scores
-stay beside each node, and then the sums are added up row by row in a table to the
-right. The largest sum is 3, the optimal score, and the node that produced it is
-the middle node. Only then does the recursion run: the green bands are the columns
-being swept, and the red dots are the middle nodes that survive.
-
-The strongest check here: the path assembled from the middle nodes alone must
-score exactly what a full table says the optimum is, which it does at 3.
-
-The two halves of each rectangle deliberately **share** the middle column. Making
-the right half start one column later, which looks like the obvious way to avoid
-overlap, breaks the property that makes the whole decomposition optimal, and the
-assembled path silently drops to a worse score.
+This example is its own oracle, and a strong one: all 28 score-vector entries are
+asserted against the numbers printed on slide 194 and all 7 ancestral letters
+against slide 198, the score is checked against a brute-force search over all
+16,384 assignments to the seven internal nodes, the backtracked tree is checked to
+really carry 3 mutations, and every recorded winner is checked to rebuild the score
+it belongs to. The root's cheapest symbol is unique here, so no tie has to be
+broken arbitrarily.
 
 ### Suggested figure captions
 
@@ -496,14 +457,6 @@ assembled path silently drops to a worse score.
 > symbol it might hold; the root's smallest entry is the score of the column, and
 > reading the choices back down the tree names the ancestral letters and the edges
 > where mutations happened.
-
-> **Linear-space alignment.** The full dynamic-programming table needs quadratic
-> memory, but finding where an optimal path crosses a single middle column needs
-> only linear memory: sweep in from the source for the best score to each node of
-> that column, sweep in from the sink for the best score out of it, and the node
-> whose two scores sum highest lies on an optimal path. Recursing on the rectangles
-> either side pins down one node per column, and those nodes alone reconstruct the
-> optimal alignment.
 
 ## Method
 

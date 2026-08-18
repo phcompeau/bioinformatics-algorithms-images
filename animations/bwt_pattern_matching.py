@@ -248,6 +248,11 @@ def build_specs() -> "list[dict]":
                           "matched from the right" % PATTERN)
     specs.append(opening)
 
+    rule = base_frame(OPENING_MS)
+    rule["caption"] = ("Last-to-first: the kth copy of a symbol in the last column "
+                       "is the kth copy of it in the first")
+    specs.append(rule)
+
     for step in STEPS:
         look = base_frame(LOOK_MS)
         look["top"] = step["top"]
@@ -264,7 +269,8 @@ def build_specs() -> "list[dict]":
         landed["bottom"] = step["new_bottom"]
         landed["symbol"] = step["symbol"]
         landed["matched"] = step["matched"]
-        landed["caption"] = ("Those same %s's start the new band, which now matches %s"
+        landed["caption"] = ("By the last-to-first property those same %s's start "
+                             "a band of rows, which now matches %s"
                              % (step["symbol"], step["matched"]))
         specs.append(landed)
 

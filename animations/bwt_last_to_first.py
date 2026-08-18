@@ -26,27 +26,32 @@ TEXT = "panamabananas$"
 PUBLISHED_BWT = "smnpbnnaaaaa$a"
 
 FIGURE_WIDTH = 10.4
-FIGURE_HEIGHT = 5.6
+FIGURE_HEIGHT = 6.2
 RENDER_DPI = 130
 OUTPUT_WIDTH = 1352
-OUTPUT_HEIGHT = 728
+OUTPUT_HEIGHT = 806
 
-MATRIX_LEFT = 0.5
-MATRIX_TOP = 4.52
-CHAR_ADVANCE = 0.163
-ROW_HEIGHT = 0.30
-CHAR_SIZE = 13.0
-RANK_SIZE = 8.0
-RANK_DX = 0.072
-RANK_DY = -0.072
+MATRIX_LEFT = 0.55
+MATRIX_TOP = 5.30
+CHAR_ADVANCE = 0.205
+ROW_HEIGHT = 0.345
+CHAR_SIZE = 16.0
+RANK_SIZE = 10.0
+RANK_DX = 0.092
+RANK_DY = -0.090
+
+# Measured from Read_Mapping.pptx slides 358-371: the unknown middle of each row is
+# A6A6A6, the symbol under discussion is pure red, and settled symbols are black.
+DECK_GREY = "#A6A6A6"
+DECK_RED = "#FF0000"
 
 CIRCLE_X = 7.55
-CIRCLE_Y = 2.55
-LETTER_RADIUS = 1.72
+CIRCLE_Y = 2.90
+LETTER_RADIUS = 1.85
 ARC_RADIUS = 1.02
-CIRCLE_SIZE = 19.0
+CIRCLE_SIZE = 21.0
 
-CAPTION_Y = 5.22
+CAPTION_Y = 5.86
 READOUT_Y = 0.42
 READOUT_SIZE = 19.0
 LABEL_SIZE = 15.0
@@ -273,10 +278,10 @@ def draw_frame(spec: dict, output_path: str) -> None:
     while row < SIZE:
         y = MATRIX_TOP - row * ROW_HEIGHT
         if row == spec["current"]:
-            first_colour = BLUE
-            last_colour = RED
+            first_colour = INK
+            last_colour = DECK_RED
         elif row == spec["target"]:
-            first_colour = BLUE
+            first_colour = DECK_RED
             last_colour = INK
         else:
             first_colour = INK
@@ -286,7 +291,7 @@ def draw_frame(spec: dict, output_path: str) -> None:
         column = 1
         while column < SIZE - 1:
             axis.text(MATRIX_LEFT + (column + 0.5) * CHAR_ADVANCE, y,
-                      MATRIX[row][column], fontsize=CHAR_SIZE, color=DIM,
+                      MATRIX[row][column], fontsize=CHAR_SIZE, color=DECK_GREY,
                       ha="center", va="center", fontproperties=MONO, zorder=4)
             column = column + 1
         draw_symbol(axis, MATRIX_LEFT + (SIZE - 0.5) * CHAR_ADVANCE, y, LAST[row],
@@ -325,7 +330,7 @@ def draw_frame(spec: dict, output_path: str) -> None:
                 if step["row"] == spec["current"]:
                     live = step["slot"]
             if slot == live and slot in spec["known"]:
-                colour = RED
+                colour = DECK_RED
         axis.text(x, y, CYCLIC[slot], fontsize=CIRCLE_SIZE, color=colour,
                   ha="center", va="center", fontproperties=MONO_BOLD, zorder=5)
         slot = slot + 1

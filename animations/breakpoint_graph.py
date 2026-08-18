@@ -34,10 +34,10 @@ RED_EDGES = [("1h", "2h"), ("2t", "3h"), ("3t", "4t"), ("4h", "1t")]
 BLUE_EDGES = [("1h", "2t"), ("2h", "3t"), ("3h", "4t"), ("4h", "1t")]
 
 FIGURE_WIDTH = 9.4
-FIGURE_HEIGHT = 6.8
+FIGURE_HEIGHT = 7.2
 RENDER_DPI = 150
 OUTPUT_WIDTH = 1410
-OUTPUT_HEIGHT = 1020
+OUTPUT_HEIGHT = 1080
 
 CENTRE_X = 4.7
 CENTRE_Y = 3.15
@@ -50,8 +50,19 @@ EDGE_OFFSET = 0.055
 COUNT_Y = 0.42
 COUNT_SIZE = 22.0
 LABEL_SIZE = 15.0
-CAPTION_Y = 6.50
-LEGEND_Y = 6.08
+# Phillip: the per-step headers ran wider than the figure and were not needed.
+# What replaces them is the genome itself, drawn as blocks: the top row is the
+# genome being sorted, and by the last frame it has become the row beneath it.
+CLOSING_Y = 6.92
+P_ROW_Y = 6.34
+Q_ROW_Y = 5.76
+BLOCK_WIDTH = 0.66
+BLOCK_GAP = 0.10
+BLOCK_HEIGHT = 0.30
+BLOCK_TIP = 0.15
+ROW_LABEL_X = 2.94
+ROW_LABEL_SIZE = 15.0
+BLOCK_NUMBER_SIZE = 13.0
 LEGEND_SIZE = 13.0
 BLOCK_LABEL_OUT = 0.36
 # Phillip could not see what was changing or why. Every node now wears the colour
@@ -143,6 +154,48 @@ def cycle_membership(red: set, blue: set) -> dict:
     return result
 
 
+def genome_of(red: set) -> "list[list[int]]":
+    """The signed blocks of the genome whose adjacencies are `red`.
+
+    Walk a block from tail to head (or head to tail, if it is reversed), step
+    across the adjacency edge waiting there, and carry on until the walk closes.
+    A 2-break can split one circular chromosome into two, so this returns a list.
+    """
+    partner = {}
+    for first, second in red:
+        partner[first] = second
+        partner[second] = first
+    used = set()
+    chromosomes = []
+    block = 1
+    while block <= BLOCKS:
+        if block in used:
+            block = block + 1
+            continue
+        chromosome = []
+        current = "%dt" % block
+        while True:
+            name = current[:len(current) - 1]
+            end = current[len(current) - 1]
+            number = int(name)
+            if number in used:
+                break
+            used.add(number)
+            if end == "t":
+                chromosome.append(number)
+                current = name + "h"
+            else:
+                chromosome.append(-number)
+                current = name + "t"
+            current = partner[current]
+        chromosomes.append(chromosome)
+        block = block + 1
+    return chromosomes
+
+
+TARGET_GENOME = genome_of(edge_set(BLUE_EDGES))
+
+
 def plan_two_breaks() -> "list[dict]":
     """Repeatedly split a non-trivial cycle by pulling one blue edge into red."""
     red = edge_set(RED_EDGES)
@@ -175,7 +228,9 @@ def plan_two_breaks() -> "list[dict]":
                       "before": before, "after": after,
                       "red_before": set(red), "red_after": set(new_red),
                       "cycles_before": cycle_membership(red, blue),
-                      "cycles_after": cycle_membership(new_red, blue)})
+                      "cycles_after": cycle_membership(new_red, blue),
+                      "genome_before": genome_of(red),
+                      "genome_after": genome_of(new_red)})
         red = new_red
     return steps
 
@@ -238,7 +293,8 @@ def verify() -> "list[str]":
     assert len(STEPS) == BLOCKS - START_CYCLES, (
         "took %d 2-breaks but blocks minus cycles is %d"
         % (len(STEPS), BLOCKS - START_CYCLES))
-    lines.append("the 2-break distance is blocks minus cycles = %d - %d = %d"
+    lines.append("blocks minus starting cycles = %d - %d = %d, the number of "
+                 "2-breaks this run takes"
                  % (BLOCKS, START_CYCLES, len(STEPS)))
 
     final = STEPS[len(STEPS) - 1]["red_after"]
@@ -249,8 +305,9 @@ def verify() -> "list[str]":
 
     assert CENTRE_Y - RADIUS - NODE_RADIUS > COUNT_Y + 0.35, (
         "circle collides with the counter")
-    assert CENTRE_Y + RADIUS + NODE_RADIUS < FIGURE_HEIGHT - 0.15, (
-        "circle runs off the top")
+    assert P_ROW_Y + BLOCK_HEIGHT / 2 + 0.2 < CLOSING_Y, (
+        "the P row runs into the closing line")
+    assert CLOSING_Y + 0.25 < FIGURE_HEIGHT, "the closing line runs off the top"
     # The block numbers ride outside the circle, so they are what the legend and
     # the counter actually have to clear, not the nodes.
     highest = 0.0
@@ -268,9 +325,9 @@ def verify() -> "list[str]":
         if label_y < lowest:
             lowest = label_y
         block = block + 1
-    assert highest + 0.22 < LEGEND_Y, (
-        "the top block number at %.2f in runs into the legend at %.2f in"
-        % (highest, LEGEND_Y))
+    assert highest + 0.22 < Q_ROW_Y - BLOCK_HEIGHT / 2, (
+        "the top block number at %.2f in runs into the Q row at %.2f in"
+        % (highest, Q_ROW_Y))
     assert lowest - 0.22 > COUNT_Y + 0.16, (
         "the bottom block number at %.2f in runs into the cycle count" % lowest)
     lines.append("circle of radius %.2f in sits clear of the counter" % RADIUS)
@@ -300,9 +357,8 @@ def trimmed(a: "tuple[float, float]", b: "tuple[float, float]") -> "tuple":
 
 def base_frame(duration: int) -> dict:
     return {"red": set(), "show_blue": True, "fading": [], "rising": [],
-            "progress": 0.0, "cycles": 0, "distance": False, "cycle_of": {},
-            "marked": [], "caption": "", "legend": False,
-            "duration_ms": duration}
+            "progress": 0.0, "cycles": 0, "cycle_of": {},
+            "marked": [], "genome": [], "closing": "", "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
@@ -312,27 +368,20 @@ def build_specs() -> "list[dict]":
     only_q = base_frame(FIRST_HOLD_MS)
     only_q["red"] = set()
     only_q["cycles"] = 0
-    only_q["caption"] = ("The target genome Q lays out the blocks, and its "
-                         "adjacencies are the blue edges")
-    only_q["legend"] = True
     specs.append(only_q)
 
     start_cycles = cycle_membership(edge_set(RED_EDGES), blue)
     arrive = base_frame(STEP_HOLD_MS)
     arrive["red"] = edge_set(RED_EDGES)
     arrive["cycles"] = START_CYCLES
-    arrive["caption"] = ("Genome P's adjacencies go on the same nodes in red: red "
-                         "is what has to change")
-    arrive["legend"] = True
+    arrive["genome"] = genome_of(edge_set(RED_EDGES))
     specs.append(arrive)
 
     both = base_frame(STEP_HOLD_MS)
     both["red"] = edge_set(RED_EDGES)
     both["cycles"] = START_CYCLES
     both["cycle_of"] = dict(start_cycles)
-    both["caption"] = ("Red and blue alternate, so the graph falls into %d cycles, "
-                       "shown by the node colours" % START_CYCLES)
-    both["legend"] = True
+    both["genome"] = genome_of(edge_set(RED_EDGES))
     specs.append(both)
 
     index = 0
@@ -344,8 +393,7 @@ def build_specs() -> "list[dict]":
         mark["cycles"] = step["before"]
         mark["cycle_of"] = dict(step["cycles_before"])
         mark["marked"] = list(step["removed"])
-        mark["caption"] = "A 2-break cuts these two red edges"
-        mark["legend"] = True
+        mark["genome"] = step["genome_before"]
         specs.append(mark)
 
         frame_index = 1
@@ -357,8 +405,7 @@ def build_specs() -> "list[dict]":
             moving["progress"] = ease(frame_index / BREAK_FRAMES)
             moving["cycles"] = step["before"]
             moving["cycle_of"] = dict(step["cycles_before"])
-            moving["caption"] = "and rejoins the four loose ends the other way"
-            moving["legend"] = True
+            moving["genome"] = step["genome_before"]
             specs.append(moving)
             frame_index = frame_index + 1
 
@@ -366,9 +413,7 @@ def build_specs() -> "list[dict]":
         settled["red"] = set(step["red_after"])
         settled["cycles"] = step["after"]
         settled["cycle_of"] = dict(step["cycles_after"])
-        settled["caption"] = ("One cycle has split in two, so the count goes from "
-                              "%d to %d" % (step["before"], step["after"]))
-        settled["legend"] = True
+        settled["genome"] = step["genome_after"]
         specs.append(settled)
         index = index + 1
 
@@ -376,11 +421,8 @@ def build_specs() -> "list[dict]":
     final["red"] = set(STEPS[len(STEPS) - 1]["red_after"])
     final["cycles"] = BLOCKS
     final["cycle_of"] = cycle_membership(set(STEPS[len(STEPS) - 1]["red_after"]), blue)
-    final["distance"] = True
-    final["legend"] = True
-    final["caption"] = ("Every cycle is now one red edge beside its blue one: P "
-                        "became Q in %d 2-breaks, which is blocks minus the %d "
-                        "cycles it started with" % (len(STEPS), START_CYCLES))
+    final["genome"] = STEPS[len(STEPS) - 1]["genome_after"]
+    final["closing"] = "%d 2-breaks turned P into Q" % len(STEPS)
     specs.append(final)
     return specs
 
@@ -402,6 +444,47 @@ def draw_edge(axis: "plt.Axes", edge: "tuple[str, str]", colour: str,
     axis.plot([a[0] + shift_x, b[0] + shift_x], [a[1] + shift_y, b[1] + shift_y],
               color=colour, linewidth=width, solid_capstyle="round", zorder=3,
               alpha=alpha)
+
+
+def draw_block_row(axis: "plt.Axes", chromosomes: "list[list[int]]", y: float,
+                   colour: str, label: str) -> None:
+    """One genome as a row of arrow blocks, in reading order.
+
+    A block pointing right is read forward, one pointing left is reversed, which
+    is what a 2-break changes. Chromosomes are separated by a gap.
+    """
+    total = 0
+    for chromosome in chromosomes:
+        total = total + len(chromosome)
+    span = total * BLOCK_WIDTH + (total - 1) * BLOCK_GAP
+    x = CENTRE_X - span / 2
+    axis.text(ROW_LABEL_X, y, label, fontsize=ROW_LABEL_SIZE, color=colour,
+              ha="right", va="center", fontproperties=OPTIMA_ITALIC, zorder=6)
+    for chromosome in chromosomes:
+        for signed in chromosome:
+            half = BLOCK_HEIGHT / 2
+            if signed > 0:
+                points = [(x, y - half), (x + BLOCK_WIDTH - BLOCK_TIP, y - half),
+                          (x + BLOCK_WIDTH, y),
+                          (x + BLOCK_WIDTH - BLOCK_TIP, y + half), (x, y + half)]
+            else:
+                points = [(x + BLOCK_WIDTH, y - half), (x + BLOCK_TIP, y - half),
+                          (x, y), (x + BLOCK_TIP, y + half),
+                          (x + BLOCK_WIDTH, y + half)]
+            shape = patches.Polygon(points, closed=True, facecolor="#FFFFFF",
+                                    edgecolor=colour, linewidth=1.6, zorder=5)
+            axis.add_patch(shape)
+            axis.text(x + BLOCK_WIDTH / 2, y, str(abs(signed)),
+                      fontsize=BLOCK_NUMBER_SIZE, color=INK, ha="center",
+                      va="center", fontproperties=OPTIMA_ITALIC, zorder=6)
+            x = x + BLOCK_WIDTH + BLOCK_GAP
+        x = x + BLOCK_GAP
+
+
+def draw_genome_rows(axis: "plt.Axes", spec: dict) -> None:
+    if len(spec["genome"]) > 0:
+        draw_block_row(axis, spec["genome"], P_ROW_Y, RED, "P")
+    draw_block_row(axis, TARGET_GENOME, Q_ROW_Y, BLUE, "Q")
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
@@ -457,16 +540,10 @@ def draw_frame(spec: dict, output_path: str) -> None:
         axis.text(CENTRE_X, COUNT_Y, "%d cycles" % spec["cycles"],
                   fontsize=COUNT_SIZE, color=INK, ha="center", va="center",
                   fontproperties=MONO_BOLD, zorder=7)
-    if spec["legend"]:
-        axis.text(CENTRE_X - 1.15, LEGEND_Y, "red = P, the genome being sorted",
-                  fontsize=LEGEND_SIZE, color=RED, ha="center", va="center",
-                  fontproperties=OPTIMA_ITALIC, zorder=7)
-        axis.text(CENTRE_X + 1.35, LEGEND_Y, "blue = Q, the target",
-                  fontsize=LEGEND_SIZE, color=BLUE, ha="center", va="center",
-                  fontproperties=OPTIMA_ITALIC, zorder=7)
+    draw_genome_rows(axis, spec)
 
-    if spec["caption"] != "":
-        axis.text(CENTRE_X, CAPTION_Y, spec["caption"], fontsize=LABEL_SIZE,
+    if spec["closing"] != "":
+        axis.text(CENTRE_X, CLOSING_Y, spec["closing"], fontsize=LABEL_SIZE,
                   color=INK, ha="center", va="center", fontproperties=OPTIMA_ITALIC,
                   zorder=7)
 

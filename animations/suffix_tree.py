@@ -105,7 +105,7 @@ TREE_LABEL_OFFSET = 0.150
 # picked out inside it: the viewer sees where in the text the suffix comes from
 # instead of reading it twice.
 HEADER_Y = 9.52
-HEADER_SIZE = 36.0
+HEADER_SIZE = 30.0
 HEADER_ADVANCE = HEADER_SIZE / 72.0 * 0.60
 
 # Clearance budget for label placement. A 17 pt Menlo glyph is about 0.21 in

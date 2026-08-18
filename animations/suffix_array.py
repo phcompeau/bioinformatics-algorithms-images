@@ -57,11 +57,9 @@ SORT_FRAMES = 40
 SORT_STAGGER = 0.55
 SORT_MS = 120
 SORT_HOLD_MS = 2400
-# The proof that the sort is right: each adjacent pair only has to be compared as
-# far as the first place they differ.
-PAIR_MS = 900
-PAIR_INTRO_MS = 2600
-MINIMAL_HOLD_MS = 4200
+# The minimal prefixes still earn their frame: they show that a handful of letters
+# fixes the whole order. The pair-by-pair walk that used to precede this was cut.
+MINIMAL_HOLD_MS = 4600
 # Phillip: the hand-off to "these are the suffix array" went by too fast.
 PICK_INTRO_MS = 2400
 PICK_MS = 700
@@ -292,27 +290,11 @@ def build_specs() -> "list[dict]":
     settled["caption"] = "Sort the suffixes"
     specs.append(settled)
 
-    # Why the order is right: walk the neighbours and show that each pair is
-    # already decided at the first letter where the two suffixes differ.
-    slot = 1
-    while slot < size:
-        upper = ARRAY[slot - 1]
-        lower = ARRAY[slot]
-        frame = base_frame(PAIR_MS)
-        frame["revealed"] = size
-        frame["slots"] = dict(sorted_slots)
-        frame["focus"] = set([upper, lower])
-        frame["prefix_limit"] = {upper: DECIDING[slot], lower: DECIDING[slot]}
-        frame["mark"] = {upper: DECIDING[slot] - 1, lower: DECIDING[slot] - 1}
-        frame["caption"] = "Each pair is settled at the first letter where they differ"
-        specs.append(frame)
-        slot = slot + 1
-
     minimal = base_frame(MINIMAL_HOLD_MS)
     minimal["revealed"] = size
     minimal["slots"] = dict(sorted_slots)
     minimal["prefix_limit"] = dict(MINIMAL)
-    minimal["caption"] = "These few letters already prove the whole order"
+    minimal["caption"] = "Only these letters matter to the sorted order"
     specs.append(minimal)
 
     hand_off = base_frame(PICK_INTRO_MS)
@@ -372,7 +354,10 @@ def draw_frame(spec: dict, output_path: str) -> None:
                   fontproperties=MONO_BOLD, zorder=6, alpha=alpha)
 
         if spec["dim_text"]:
-            text_colour = DIM
+            if highlighted:
+                text_colour = INK
+            else:
+                text_colour = DIM
         else:
             text_colour = INK
         dulled = spec["focus"] is not None and row not in spec["focus"]
@@ -388,9 +373,13 @@ def draw_frame(spec: dict, output_path: str) -> None:
                 colour = FAINT
             if column == marked and not dulled:
                 colour = BLUE
+            if highlighted:
+                face = MONO_BOLD
+            else:
+                face = MONO
             axis.text(LEFT + INDEX_GAP + (column + 0.5) * CHAR_ADVANCE, y,
                       suffix[column], fontsize=CHAR_SIZE, color=colour,
-                      ha="center", va="center", fontproperties=MONO, zorder=5,
+                      ha="center", va="center", fontproperties=face, zorder=5,
                       alpha=alpha)
             column = column + 1
         row = row + 1

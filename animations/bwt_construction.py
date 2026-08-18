@@ -28,6 +28,8 @@ INK = "#1A1A1A"
 DIM = "#9A958C"
 FAINT = "#CFC9BC"
 GHOST = "#DCD6C8"
+# The deck highlights the live symbol in pure red.
+DECK_RED = "#FF0000"
 BLUE = "#176FC1"
 RED = "#ED1C24"
 
@@ -38,11 +40,11 @@ OPTIMA_ITALIC = font_manager.FontProperties(family="Optima", style="italic")
 TEXT = "panamabananas$"
 PUBLISHED_BWT = "smnpbnnaaaaa$a"
 
-FIGURE_WIDTH = 9.0
+FIGURE_WIDTH = 12.4
 FIGURE_HEIGHT = 6.1
-RENDER_DPI = 140
-OUTPUT_WIDTH = 1260
-OUTPUT_HEIGHT = 854
+RENDER_DPI = 130
+OUTPUT_WIDTH = 1612
+OUTPUT_HEIGHT = 793
 
 CHAR_ADVANCE = 0.205
 ROW_HEIGHT = 0.305
@@ -52,16 +54,23 @@ READOUT_Y = 0.70
 READOUT_SIZE = 21.0
 LABEL_SIZE = 15.0
 
+# The text as a ring on the right, so "cyclic rotation" is something the viewer
+# can see rather than a word: each rotation starts at the letter that lights up.
+RING_X = 9.55
+RING_Y = 3.05
+RING_RADIUS = 1.62
+RING_SIZE = 22.0
+RING_LABEL_SIZE = 15.0
+MATRIX_LEFT_FIXED = 1.25
+
 REVEAL_MS = 460
 REVEAL_HOLD_MS = 2200
 SORT_FRAMES = 40
 SORT_STAGGER = 0.55
 SORT_MS = 120
 SORT_HOLD_MS = 2600
-# The proof that the sort is right: each neighbouring pair is decided at the
-# first position where the two rotations differ.
-PAIR_MS = 900
-MINIMAL_HOLD_MS = 4200
+# The minimal prefixes stay: they show how few letters fix the whole order.
+MINIMAL_HOLD_MS = 4600
 COLUMN_INTRO_MS = 2200
 COLUMN_MS = 420
 FINAL_HOLD_MS = 5000
@@ -215,6 +224,11 @@ def verify() -> "list[str]":
         "inverting the transform gave %r, not the original text" % recovered)
     lines.append("inverting BWT(Text) reproduces %s exactly" % TEXT)
 
+    assert (MATRIX_LEFT_FIXED + size * CHAR_ADVANCE + 0.4
+            < RING_X - RING_RADIUS - 0.3), "the matrix collides with the ring"
+    assert RING_X + RING_RADIUS + 0.3 < FIGURE_WIDTH, "the ring runs off the right"
+    assert RING_Y + RING_RADIUS + 0.3 < FIGURE_HEIGHT - 0.5, "the ring hits the caption"
+    assert RING_Y - RING_RADIUS - 0.62 > READOUT_Y, "the ring hits the readout"
     matrix_width = size * CHAR_ADVANCE
     lowest = MATRIX_TOP - (size - 1) * ROW_HEIGHT
     assert matrix_width < FIGURE_WIDTH - 1.0, "matrix too wide for the canvas"
@@ -269,7 +283,8 @@ MINIMAL = minimal_prefixes()
 
 
 def matrix_left() -> float:
-    return (FIGURE_WIDTH - len(TEXT) * CHAR_ADVANCE) / 2
+    """Fixed, because the ring now takes the right-hand side of the frame."""
+    return MATRIX_LEFT_FIXED
 
 
 LEFT = matrix_left()
@@ -303,7 +318,7 @@ def new_axes() -> "tuple":
 def base_frame(duration: int) -> dict:
     return {"revealed": 0, "slots": {}, "alphas": {}, "highlight_columns": 0,
             "dim_rest": False, "caption": "", "readout": 0, "prefix_limit": {},
-            "mark": {}, "focus": None, "duration_ms": duration}
+            "mark": {}, "focus": None, "ring_start": -1, "duration_ms": duration}
 
 
 def build_specs() -> "list[dict]":
@@ -328,14 +343,15 @@ def build_specs() -> "list[dict]":
         frame = base_frame(REVEAL_MS)
         frame["revealed"] = reveal
         frame["slots"] = dict(unsorted_slots)
-        frame["caption"] = "Form all cyclic rotations of %s" % TEXT
+        frame["ring_start"] = reveal - 1
+        frame["caption"] = ("Each rotation reads the ring from one letter onward")
         specs.append(frame)
         reveal = reveal + 1
 
     hold = base_frame(REVEAL_HOLD_MS)
     hold["revealed"] = size
     hold["slots"] = dict(unsorted_slots)
-    hold["caption"] = "Form all cyclic rotations of %s" % TEXT
+    hold["caption"] = "All %d cyclic rotations of the text" % size
     specs.append(hold)
 
     # Sorting: each row slides to its sorted slot, staggered so the rows leave
@@ -373,27 +389,11 @@ def build_specs() -> "list[dict]":
     settled["caption"] = "Sort the rotations"
     specs.append(settled)
 
-    # Why the order is right: walk the neighbours and show that each pair is
-    # already decided at the first letter where the two rotations differ.
-    slot = 1
-    while slot < size:
-        upper = ORDER[slot - 1]
-        lower = ORDER[slot]
-        frame = base_frame(PAIR_MS)
-        frame["revealed"] = size
-        frame["slots"] = dict(sorted_slots)
-        frame["focus"] = set([upper, lower])
-        frame["prefix_limit"] = {upper: DECIDING[slot], lower: DECIDING[slot]}
-        frame["mark"] = {upper: DECIDING[slot] - 1, lower: DECIDING[slot] - 1}
-        frame["caption"] = "Each pair is settled at the first letter where they differ"
-        specs.append(frame)
-        slot = slot + 1
-
     minimal = base_frame(MINIMAL_HOLD_MS)
     minimal["revealed"] = size
     minimal["slots"] = dict(sorted_slots)
     minimal["prefix_limit"] = dict(MINIMAL)
-    minimal["caption"] = "These few letters already prove the whole order"
+    minimal["caption"] = "Only these letters matter to the sorted order"
     specs.append(minimal)
 
     hand_off = base_frame(COLUMN_INTRO_MS)
@@ -424,6 +424,47 @@ def build_specs() -> "list[dict]":
     final["caption"] = "BWT(Text) is the last column"
     specs.append(final)
     return specs
+
+
+def draw_ring(axis: "plt.Axes", start: int) -> None:
+    """The text written round a circle, which is what makes it cyclic.
+
+    Position 0 sits at the top and the letters run clockwise, so a rotation is
+    just a starting point on the ring. The letter a rotation begins at is drawn in
+    the deck's red, with an arrow from the middle pointing at it.
+    """
+    import matplotlib.patches as patches
+    guide = patches.Circle((RING_X, RING_Y), RING_RADIUS, facecolor="none",
+                           edgecolor=FAINT, linewidth=1.0, zorder=2)
+    axis.add_patch(guide)
+    position = 0
+    while position < len(TEXT):
+        angle = math.pi / 2 - 2 * math.pi * position / len(TEXT)
+        x = RING_X + RING_RADIUS * math.cos(angle)
+        y = RING_Y + RING_RADIUS * math.sin(angle)
+        if position == start:
+            colour = DECK_RED
+            font = MONO_BOLD
+        else:
+            colour = INK
+            font = MONO
+        axis.text(x, y, TEXT[position], fontsize=RING_SIZE, color=colour,
+                  ha="center", va="center", fontproperties=font, zorder=5)
+        position = position + 1
+    if start >= 0:
+        angle = math.pi / 2 - 2 * math.pi * start / len(TEXT)
+        near = RING_RADIUS * 0.52
+        far = RING_RADIUS - 0.30
+        axis.annotate("", xy=(RING_X + far * math.cos(angle),
+                              RING_Y + far * math.sin(angle)),
+                      xytext=(RING_X + near * math.cos(angle),
+                              RING_Y + near * math.sin(angle)),
+                      arrowprops={"arrowstyle": "-|>", "color": DECK_RED,
+                                  "linewidth": 1.6, "shrinkA": 0, "shrinkB": 0},
+                      zorder=4)
+        axis.text(RING_X, RING_Y - RING_RADIUS - 0.42, "start at %d" % start,
+                  fontsize=RING_LABEL_SIZE, color=DECK_RED, ha="center",
+                  va="center", fontproperties=MONO, zorder=5)
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
@@ -470,6 +511,8 @@ def draw_frame(spec: dict, output_path: str) -> None:
                       zorder=5, alpha=spec["alphas"].get(row, 1.0))
             column = column + 1
         row = row + 1
+
+    draw_ring(axis, spec["ring_start"])
 
     if spec["caption"] != "":
         axis.text(FIGURE_WIDTH / 2, FIGURE_HEIGHT - 0.42, spec["caption"],

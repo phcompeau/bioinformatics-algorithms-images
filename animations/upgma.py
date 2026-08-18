@@ -404,8 +404,8 @@ def build_specs() -> "list[dict]":
             grow["highlight"] = step["pair"]
             grow["built"] = index + 1
             grow["growth"] = ease(frame_index / GROW_FRAMES)
-            grow["caption"] = ("Hang a new node halfway between them, at height %g"
-                               % step["age"])
+            grow["caption"] = ("Their common ancestor goes in at height %g, half "
+                               "their distance" % step["age"])
             specs.append(grow)
             frame_index = frame_index + 1
 
@@ -414,8 +414,8 @@ def build_specs() -> "list[dict]":
         hung["matrix"] = dict(step["matrix"])
         hung["highlight"] = step["pair"]
         hung["built"] = index + 1
-        hung["caption"] = ("Hang a new node halfway between them, at height %g"
-                           % step["age"])
+        hung["caption"] = ("Their common ancestor goes in at height %g, half "
+                           "their distance" % step["age"])
         specs.append(hung)
 
         # Phillip: the averaging was invisible. Now every new entry is worked out
