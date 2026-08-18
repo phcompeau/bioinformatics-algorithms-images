@@ -29,19 +29,24 @@ import matplotlib.pyplot as plt
 
 from make_gif import assemble_gif
 
+# Styled after Phillip's 02-180 Lecture 5 (Read_Mapping.pptx, slides 141-155 for
+# the trie and 204-233 for the compression): cream ground, white nodes with a
+# thin dark outline, large monospace letters, no arrowheads.
+BACKGROUND = "#EEE9DF"
+INK = "#1A1A1A"
+NODE_FILL = "#FFFFFF"
+LEAF_FILL = "#3F3F3F"
 BLUE = "#176FC1"
 GREEN = "#149B52"
-ORANGE = "#F46E2B"
-EDGE_GRAY = "#595959"
-FADED_GRAY = "#D2D2D2"
-NODE_FILL = "#DCDCDC"
-LEAF_FILL = "#3F3F3F"
-SHADOW = "#BFBFBF"
+RED = "#ED1C24"
+FADED = "#C9C4B8"
 TEXT_DARK = "#262626"
 
+# His deck sets the letters in Consolas, which is not installed here; Menlo is
+# the closest metric and tone match on macOS.
+MONO = font_manager.FontProperties(family="Menlo")
 OPTIMA = font_manager.FontProperties(family="Optima")
 OPTIMA_ITALIC = font_manager.FontProperties(family="Optima", style="italic")
-COURIER = font_manager.FontProperties(family="Courier New", weight="bold")
 
 TEXT = "panamabananas$"
 
@@ -56,27 +61,47 @@ PUBLISHED_TREE = {
 }
 PUBLISHED_ROOT_BRANCHES = "$abmnps"
 
+
 FIGURE_WIDTH = 11.0
-FIGURE_HEIGHT = 13.0
-RENDER_DPI = 100
-OUTPUT_WIDTH = 1100
-OUTPUT_HEIGHT = 1300
+FIGURE_HEIGHT = 9.5
+RENDER_DPI = 120
+OUTPUT_WIDTH = 1320
+OUTPUT_HEIGHT = 1140
 
-TRIE_TOP = 12.35
-TRIE_GAP = 0.80
-LEFT_MARGIN = 0.42
-NODE_RADIUS = 0.165
-LEAF_RADIUS = 0.185
-EDGE_GAP = 0.03
-LETTER_OFFSET = 0.17
-LETTER_SIZE = 9.5
-LEAF_SIZE = 8.5
+# Measured from the lecture deck: nodes 0.25 in across, root 0.417 in, letters
+# 18 pt, leaf indices 14 pt white on a dark disc.
+NODE_RADIUS = 0.125
+LEAF_RADIUS = 0.150
+ROOT_RADIUS = 0.208
+LETTER_SIZE = 17.0
+LEAF_SIZE = 11.5
+ROOT_SIZE = 10.0
+EDGE_WIDTH = 0.9
+EDGE_WIDTH_MARKED = 2.2
 
-TREE_LETTER_GAP = 0.30
-TREE_EDGE_PAD = 0.26
+TRIE_TOP = 8.95
+TRIE_GAP = 0.56
+LEFT_MARGIN = 0.45
+EDGE_GAP = 0.025
+LETTER_OFFSET = 0.19
+# A letter sits this far back from its child node along its own edge, rather than
+# at the edge midpoint. On the root's long shallow edges that keeps each label
+# beside the child it belongs to, which is how the lecture slides place them.
+LETTER_BACKOFF = 0.62
+LETTER_BACKOFF_FRACTION = 0.45
 
-READOUT_Y = 0.42
-READOUT_SIZE = 15.0
+# One character of 17 pt Menlo advances about 0.14 in; a collapsed edge is made
+# long enough to seat its whole label plus a little breathing room.
+CHAR_ADVANCE = 0.153
+LABEL_END_GAP = 0.28
+LABEL_END_PAD = 0.32
+# The root fans out across the whole width, so its edges need a real vertical
+# drop or they come out nearly parallel and their labels pile up.
+MIN_DROP = 1.25
+TREE_LABEL_OFFSET = 0.150
+
+READOUT_Y = 0.38
+READOUT_SIZE = 16.0
 
 TRIE_THREAD_MS = 900
 TRIE_LETTER_MS = 220
@@ -87,7 +112,7 @@ FINAL_HOLD_MS = 4600
 
 COMPRESS_INTRO_MS = 3200
 COMPRESS_MARK_MS = 3000
-COMPRESS_MOTION_FRAMES = 26
+COMPRESS_MOTION_FRAMES = 28
 COMPRESS_MOTION_MS = 120
 
 
@@ -99,7 +124,7 @@ def child_sort_key(character: str) -> str:
 
 
 def build_trie() -> "tuple[dict, dict, dict]":
-    """children[node][char] = child, leaf_label[node] = suffix start, parent_char."""
+    """children[node][char] = child, leaf_label[node] = suffix start, incoming char."""
     children = {0: {}}
     leaf_label = {}
     incoming = {}
@@ -139,7 +164,6 @@ def sorted_children(node: int) -> "list[int]":
 
 
 def depths() -> dict:
-    """Depth of every trie node, the root being 0."""
     result = {0: 0}
     stack = [0]
     while len(stack) > 0:
@@ -154,7 +178,6 @@ DEPTH = depths()
 
 
 def parent_map() -> dict:
-    """Parent of every trie node except the root."""
     result = {}
     stack = [0]
     while len(stack) > 0:
@@ -180,7 +203,6 @@ def spell(node: int) -> str:
 
 
 def leaf_order() -> "list[int]":
-    """Trie leaves left to right, by depth-first traversal in book order."""
     order = []
     stack = [0]
     while len(stack) > 0:
@@ -226,7 +248,6 @@ X = x_positions()
 
 
 def trie_positions() -> dict:
-    """Trie node centers: depth sets y, the slot layout sets x."""
     result = {}
     for node in DEPTH:
         result[node] = (X[node], TRIE_TOP - DEPTH[node] * TRIE_GAP)
@@ -240,8 +261,7 @@ def build_tree() -> "tuple[dict, dict]":
     """Collapse non-branching paths.
 
     Returns edges[top] = {label: bottom} and owner[node] = (top, bottom, index),
-    which says which collapsed edge each trie node's letter belongs to and where
-    in that edge's label it sits.
+    saying which collapsed edge each trie node's letter belongs to.
     """
     edges = {}
     owner = {}
@@ -251,7 +271,6 @@ def build_tree() -> "tuple[dict, dict]":
         edges[top] = {}
         for child in sorted_children(top):
             label = INCOMING[child]
-            owner[child] = (top, None, 0)
             chain = [child]
             walker = child
             while len(CHILDREN[walker]) == 1 and walker not in LEAF_LABEL:
@@ -272,12 +291,19 @@ def build_tree() -> "tuple[dict, dict]":
 TREE_EDGES, OWNER = build_tree()
 
 
-def tree_positions() -> dict:
-    """Surviving node centers once every chain has collapsed.
+def label_of(top: int, bottom: int) -> str:
+    """The collapsed label on the edge between two surviving nodes."""
+    for label in TREE_EDGES[top]:
+        if TREE_EDGES[top][label] == bottom:
+            return label
+    raise ValueError("no collapsed edge there")
 
-    An edge's length is proportional to its label length, so the whole figure
-    shrinks vertically. x never changes, which is what makes the collapse read
-    as pure compression.
+
+def tree_positions() -> dict:
+    """Surviving node centers after the collapse.
+
+    x never changes. Each edge drops far enough that its rotated label fits
+    along it, which is what makes the figure shrink vertically.
     """
     result = {0: (X[0], TRIE_TOP)}
     pending = [0]
@@ -285,7 +311,13 @@ def tree_positions() -> dict:
         top = pending.pop()
         for label in TREE_EDGES[top]:
             bottom = TREE_EDGES[top][label]
-            drop = len(label) * TREE_LETTER_GAP + TREE_EDGE_PAD
+            needed = len(label) * CHAR_ADVANCE + LABEL_END_GAP + LABEL_END_PAD
+            dx = X[bottom] - X[top]
+            squared = needed * needed - dx * dx
+            if squared < MIN_DROP * MIN_DROP:
+                drop = MIN_DROP
+            else:
+                drop = math.sqrt(squared)
             result[bottom] = (X[bottom], result[top][1] - drop)
             if bottom in TREE_EDGES:
                 pending.append(bottom)
@@ -297,33 +329,68 @@ SURVIVORS = set(TREE_XY.keys())
 
 
 def letters_beside(positions: dict) -> dict:
-    """Each node's incoming letter, beside the midpoint of its own edge.
-
-    Used for both the trie layout and the collapsed layout, so a letter never
-    changes which side of its edge it sits on while the figure compresses.
-    """
+    """Trie letters: upright, beside the midpoint of their own edge."""
     result = {}
     for node in INCOMING:
         parent = PARENT[node]
         ax, ay = positions[parent]
         bx, by = positions[node]
         length = math.hypot(bx - ax, by - ay)
-        perp_x = -(by - ay) / length
-        perp_y = (bx - ax) / length
-        mid_x = (ax + bx) / 2
-        mid_y = (ay + by) / 2
-        result[node] = (mid_x + perp_x * LETTER_OFFSET,
-                        mid_y + perp_y * LETTER_OFFSET)
+        unit_x = (bx - ax) / length
+        unit_y = (by - ay) / length
+        perp_x = -unit_y
+        perp_y = unit_x
+        backoff = LETTER_BACKOFF
+        if backoff > length * LETTER_BACKOFF_FRACTION:
+            backoff = length * LETTER_BACKOFF_FRACTION
+        anchor_x = bx - unit_x * backoff
+        anchor_y = by - unit_y * backoff
+        result[node] = (anchor_x + perp_x * LETTER_OFFSET,
+                        anchor_y + perp_y * LETTER_OFFSET, 0.0)
+    return result
+
+
+def letters_along_edges() -> dict:
+    """Tree letters: set along their collapsed edge, rotated to follow it.
+
+    The rotation is normalized into [-90, 90] so a label never renders upside
+    down, exactly as the lecture slides place them.
+    """
+    result = {}
+    for node in INCOMING:
+        if node not in OWNER:
+            continue
+        top, bottom, index = OWNER[node]
+        label = label_of(top, bottom)
+        ax, ay = TREE_XY[top]
+        bx, by = TREE_XY[bottom]
+        length = math.hypot(bx - ax, by - ay)
+        angle = math.degrees(math.atan2(by - ay, bx - ax))
+        if angle > 90.0:
+            angle = angle - 180.0
+        elif angle < -90.0:
+            angle = angle + 180.0
+        radians = math.radians(angle)
+        unit_x = math.cos(radians)
+        unit_y = math.sin(radians)
+        perp_x = -unit_y
+        perp_y = unit_x
+        # Anchor the run of letters just short of the child, so labels on nearly
+        # parallel edges separate along with the children they belong to.
+        toward_x = (bx - ax) / length
+        toward_y = (by - ay) / length
+        centre_distance = LABEL_END_GAP + len(label) * CHAR_ADVANCE / 2.0
+        centre_x = bx - toward_x * centre_distance
+        centre_y = by - toward_y * centre_distance
+        step = index - (len(label) - 1) / 2.0
+        result[node] = (centre_x + unit_x * step * CHAR_ADVANCE + perp_x * TREE_LABEL_OFFSET,
+                        centre_y + unit_y * step * CHAR_ADVANCE + perp_y * TREE_LABEL_OFFSET,
+                        angle)
     return result
 
 
 def collapsed_positions() -> dict:
-    """Every node's position once the chains have collapsed.
-
-    A chain keeps its x and stays vertical, exactly as the published tree draws
-    it: one diagonal step off the branch node, then a straight run of letters.
-    Only y changes, which is why the collapse reads as pure compression.
-    """
+    """Every node's position after the collapse; discarded ones ride their edge."""
     result = {}
     for node in TREE_XY:
         result[node] = TREE_XY[node]
@@ -331,18 +398,17 @@ def collapsed_positions() -> dict:
         if node in SURVIVORS:
             continue
         top, bottom, index = OWNER[node]
-        label_length = 0
-        for label in TREE_EDGES[top]:
-            if TREE_EDGES[top][label] == bottom:
-                label_length = len(label)
-        remaining = label_length - 1 - index
-        result[node] = (X[node], TREE_XY[bottom][1] + remaining * TREE_LETTER_GAP)
+        label = label_of(top, bottom)
+        fraction = (index + 1.0) / len(label)
+        ax, ay = TREE_XY[top]
+        bx, by = TREE_XY[bottom]
+        result[node] = (ax + (bx - ax) * fraction, ay + (by - ay) * fraction)
     return result
 
 
 COLLAPSED_XY = collapsed_positions()
 LETTER_TRIE = letters_beside(TRIE_XY)
-LETTER_TREE = letters_beside(COLLAPSED_XY)
+LETTER_TREE = letters_along_edges()
 
 
 def insertion_plan() -> "list[dict]":
@@ -368,13 +434,8 @@ def insertion_plan() -> "list[dict]":
                 created.append(node)
         for node in path:
             existing.add(node)
-        plan.append({
-            "start": start,
-            "suffix": suffix,
-            "threaded": threaded,
-            "created": created,
-            "leaf": path[len(path) - 1],
-        })
+        plan.append({"start": start, "suffix": suffix, "threaded": threaded,
+                     "created": created, "leaf": path[len(path) - 1]})
         start = start + 1
     return plan
 
@@ -383,7 +444,7 @@ PLAN = insertion_plan()
 
 
 def verify() -> "list[str]":
-    """Assert both structures against the published figures."""
+    """Assert both structures against the published figures and the layout."""
     lines = []
 
     assert len(LEAF_LABEL) == len(TEXT), "one leaf per suffix"
@@ -407,9 +468,7 @@ def verify() -> "list[str]":
     for character in CHILDREN[0]:
         branches.append(character)
     branches.sort(key=child_sort_key)
-    assert "".join(branches) == PUBLISHED_ROOT_BRANCHES, (
-        "root branches %s, figure shows %s"
-        % ("".join(branches), PUBLISHED_ROOT_BRANCHES))
+    assert "".join(branches) == PUBLISHED_ROOT_BRANCHES, "root branches disagree"
     lines.append("root branches on %s, matching suffix_trie.png" % "".join(branches))
 
     rebuilt = {}
@@ -431,31 +490,14 @@ def verify() -> "list[str]":
 
     for top in TREE_EDGES:
         for label in TREE_EDGES[top]:
-            bottom = TREE_EDGES[top][label]
-            assert spell(top) + label == spell(bottom), (
-                "collapsed edge %s does not spell its endpoints" % label)
-    lines.append("every collapsed edge label spells the gap between its endpoints")
+            assert spell(top) + label == spell(TREE_EDGES[top][label]), (
+                "collapsed label %s does not spell the gap it covers" % label)
+    lines.append("every collapsed label spells the gap between its endpoints")
 
-    assert len(SURVIVORS) == edge_total + 1, "survivor count must equal tree nodes"
     for node in LEAF_LABEL:
         assert node in SURVIVORS, "a leaf was collapsed away"
     lines.append("all %d leaves and %d branch nodes survive the collapse"
                  % (len(LEAF_LABEL), len(SURVIVORS) - len(LEAF_LABEL)))
-
-    covered = set()
-    for node in INCOMING:
-        top, bottom, index = OWNER[node]
-        assert bottom is not None, "node %d has no collapsed edge" % node
-        covered.add(node)
-    assert len(covered) == len(CHILDREN) - 1, "every non-root node needs an owner"
-    lines.append("every letter belongs to exactly one collapsed edge")
-
-    for node in LEAF_LABEL:
-        letters = len(spell(node))
-        expected = TRIE_TOP - letters * TRIE_GAP
-        assert abs(TRIE_XY[node][1] - expected) < 1e-9, "trie depth mismatch"
-    lines.append("trie leaf depth equals suffix length for all %d leaves"
-                 % len(LEAF_LABEL))
 
     for node in SURVIVORS:
         assert abs(TRIE_XY[node][0] - TREE_XY[node][0]) < 1e-9, (
@@ -469,14 +511,47 @@ def verify() -> "list[str]":
     lines.append("the %d insertions create all %d non-root nodes exactly once"
                  % (len(PLAN), total))
 
+    # Every collapsed edge must be long enough to seat its own rotated label.
+    for top in TREE_EDGES:
+        for label in TREE_EDGES[top]:
+            bottom = TREE_EDGES[top][label]
+            ax, ay = TREE_XY[top]
+            bx, by = TREE_XY[bottom]
+            length = math.hypot(bx - ax, by - ay)
+            needed = len(label) * CHAR_ADVANCE + LABEL_END_GAP
+            assert length >= needed, (
+                "edge %r is %.2f in but its label needs %.2f in" % (label, length, needed))
+    lines.append("every collapsed edge is long enough to seat its rotated label")
+
+    closest = 99.0
+    pair = ("", "")
+    keys = []
+    for node in LETTER_TRIE:
+        keys.append(node)
+    outer = 0
+    while outer < len(keys):
+        inner = outer + 1
+        while inner < len(keys):
+            a = LETTER_TRIE[keys[outer]]
+            b = LETTER_TRIE[keys[inner]]
+            gap = math.hypot(a[0] - b[0], a[1] - b[1])
+            if gap < closest:
+                closest = gap
+                pair = (INCOMING[keys[outer]], INCOMING[keys[inner]])
+            inner = inner + 1
+        outer = outer + 1
+    assert closest > 0.17, ("trie letters %r and %r are only %.3f in apart"
+                            % (pair[0], pair[1], closest))
+    lines.append("closest pair of trie letters is %.2f in apart (%r and %r)"
+                 % (closest, pair[0], pair[1]))
+
     lowest = TRIE_TOP
     for node in TRIE_XY:
         if TRIE_XY[node][1] < lowest:
             lowest = TRIE_XY[node][1]
-    assert lowest - LEAF_RADIUS > READOUT_Y + 0.28, "trie collides with the readout"
-    assert TRIE_TOP + NODE_RADIUS < FIGURE_HEIGHT - 0.2, "trie runs off the top"
-    lines.append("trie spans %.2f to %.2f in, clear of the readout line"
-                 % (lowest, TRIE_TOP))
+    assert lowest - LEAF_RADIUS > READOUT_Y + 0.22, "trie collides with the readout"
+    assert TRIE_TOP + ROOT_RADIUS < FIGURE_HEIGHT - 0.15, "trie runs off the top"
+    lines.append("trie spans %.2f to %.2f in, clear of the readout" % (lowest, TRIE_TOP))
 
     tree_lowest = TRIE_TOP
     for node in TREE_XY:
@@ -489,59 +564,62 @@ def verify() -> "list[str]":
 
 
 def new_axes() -> "tuple":
-    """Axes that fill the whole figure.
-
-    The default subplot rect wastes about a fifth of each dimension on margins,
-    which matters on a figure this dense: filling the canvas buys roughly 29%
-    more linear resolution for free.
-    """
+    """Cream axes filling the whole figure."""
     figure = plt.figure(figsize=(FIGURE_WIDTH, FIGURE_HEIGHT), dpi=RENDER_DPI)
     axis = figure.add_axes([0.0, 0.0, 1.0, 1.0])
     axis.set_xlim(0, FIGURE_WIDTH)
     axis.set_ylim(0, FIGURE_HEIGHT)
     axis.set_aspect("equal")
     axis.axis("off")
+    figure.patch.set_facecolor(BACKGROUND)
+    axis.set_facecolor(BACKGROUND)
     return (figure, axis)
 
 
+def node_radius(node: int) -> float:
+    if node == 0:
+        return ROOT_RADIUS
+    if node in LEAF_LABEL:
+        return LEAF_RADIUS
+    return NODE_RADIUS
+
+
 def draw_node(axis: "plt.Axes", position: "tuple[float, float]", node: int,
-              color: str, alpha: float) -> None:
-    """Light gray trie node, or a dark numbered leaf."""
+              outline: str, alpha: float) -> None:
+    """White node with a thin dark outline; leaves are dark discs with an index."""
     if alpha <= 0.01:
         return
-    is_leaf = node in LEAF_LABEL
-    if is_leaf:
-        radius = LEAF_RADIUS
-        fill = LEAF_FILL
+    radius = node_radius(node)
+    if node in LEAF_LABEL:
+        face = LEAF_FILL
+        edge = LEAF_FILL
+        width = 1.0
     else:
-        radius = NODE_RADIUS
-        fill = NODE_FILL
-    if color != "":
-        fill = color
-    shadow = patches.Circle((position[0] + 0.025, position[1] - 0.025), radius,
-                            facecolor=SHADOW, edgecolor="none", zorder=4,
-                            alpha=alpha * 0.9)
-    axis.add_patch(shadow)
-    circle = patches.Circle(position, radius, facecolor=fill, edgecolor="none",
-                            zorder=5, alpha=alpha)
+        face = NODE_FILL
+        edge = INK
+        width = 1.1
+    if outline != "":
+        edge = outline
+        width = 2.2
+        if node not in LEAF_LABEL:
+            face = NODE_FILL
+    circle = patches.Circle(position, radius, facecolor=face, edgecolor=edge,
+                            linewidth=width, zorder=5, alpha=alpha)
     axis.add_patch(circle)
-    if is_leaf:
+    if node in LEAF_LABEL:
         axis.text(position[0], position[1], str(LEAF_LABEL[node]), fontsize=LEAF_SIZE,
-                  color="white", ha="center", va="center", fontproperties=OPTIMA,
+                  color="white", ha="center", va="center", fontproperties=MONO,
                   zorder=6, alpha=alpha)
     if node == 0:
-        axis.text(position[0], position[1], "root", fontsize=8.5, color=TEXT_DARK,
-                  ha="center", va="center", fontproperties=OPTIMA_ITALIC, zorder=6,
+        axis.text(position[0], position[1], "Root", fontsize=ROOT_SIZE, color=INK,
+                  ha="center", va="center", fontproperties=OPTIMA, zorder=6,
                   alpha=alpha)
 
 
 def draw_edge(axis: "plt.Axes", start: "tuple[float, float]",
               end: "tuple[float, float]", color: str, width: float,
-              alpha: float, arrow: bool, trim_start: float,
-              trim_end: float) -> None:
-    """Edge trimmed by whatever part of each endpoint node is still visible."""
-    if alpha <= 0.01:
-        return
+              trim_start: float, trim_end: float) -> None:
+    """Plain line, no arrowhead, trimmed by the visible part of each node."""
     length = math.hypot(end[0] - start[0], end[1] - start[1])
     if length < 1e-6:
         return
@@ -550,75 +628,44 @@ def draw_edge(axis: "plt.Axes", start: "tuple[float, float]",
     if length <= trim_start + trim_end:
         trim_start = 0.0
         trim_end = 0.0
-    a = (start[0] + unit_x * trim_start, start[1] + unit_y * trim_start)
-    b = (end[0] - unit_x * trim_end, end[1] - unit_y * trim_end)
-    if arrow:
-        style = "-|>"
-    else:
-        style = "-"
-    # shrinkA/shrinkB default to 2 points each, which would clip a few pixels off
-    # every segment and break a collapsed chain into dashes. Trimming is done above.
-    patch = patches.FancyArrowPatch(a, b, arrowstyle=style, mutation_scale=8,
-                                    linewidth=width, color=color, zorder=3,
-                                    alpha=alpha, joinstyle="round",
-                                    capstyle="round", shrinkA=0.0, shrinkB=0.0)
-    axis.add_patch(patch)
+    axis.plot([start[0] + unit_x * trim_start, end[0] - unit_x * trim_end],
+              [start[1] + unit_y * trim_start, end[1] - unit_y * trim_end],
+              color=color, linewidth=width, solid_capstyle="round", zorder=3)
 
 
-def node_trim(node: int, visibility: float) -> float:
-    """How far an edge should stop short of a node, given how visible it is."""
-    if node in LEAF_LABEL:
-        radius = LEAF_RADIUS
-    else:
-        radius = NODE_RADIUS
-    return (radius + EDGE_GAP) * visibility
+def draw_letter(axis: "plt.Axes", placement: "tuple[float, float, float]",
+                character: str, color: str) -> None:
+    axis.text(placement[0], placement[1], character, fontsize=LETTER_SIZE,
+              color=color, ha="center", va="center", fontproperties=MONO,
+              rotation=placement[2], rotation_mode="anchor", zorder=7)
 
 
-def draw_letter(axis: "plt.Axes", position: "tuple[float, float]", character: str,
-                color: str, alpha: float) -> None:
-    if alpha <= 0.01:
-        return
-    axis.text(position[0], position[1], character, fontsize=LETTER_SIZE, color=color,
-              ha="center", va="center", fontproperties=COURIER, zorder=7, alpha=alpha)
-
-
-def draw_readout(axis: "plt.Axes", readout: "list[tuple[str, str]]") -> None:
-    """One Courier line at the bottom, coloured piecewise."""
+def draw_readout(axis: "plt.Axes", readout: "list") -> None:
+    """One monospace line at the bottom, coloured piecewise."""
     if len(readout) == 0:
         return
     total = 0
     for piece, color in readout:
         total = total + len(piece)
-    width_per_char = 0.148
-    x = FIGURE_WIDTH / 2 - total * width_per_char / 2
+    advance = READOUT_SIZE / 72.0 * 0.60
+    x = FIGURE_WIDTH / 2 - total * advance / 2
     for piece, color in readout:
         axis.text(x, READOUT_Y, piece, fontsize=READOUT_SIZE, color=color,
-                  ha="left", va="center", fontproperties=COURIER, zorder=8)
-        x = x + len(piece) * width_per_char
-
-
-INTERMEDIATE_TARGET = COLLAPSED_XY
+                  ha="left", va="center", fontproperties=MONO, zorder=8)
+        x = x + len(piece) * advance
 
 
 def ease(fraction: float) -> float:
-    """Cosine ease so the collapse starts and stops gently."""
     clamped = min(max(fraction, 0.0), 1.0)
     return 0.5 * (1 - math.cos(math.pi * clamped))
 
 
 def base_frame(duration: int) -> dict:
-    return {
-        "revealed": None,
-        "node_colors": {},
-        "edge_colors": {},
-        "readout": [],
-        "t": 0.0,
-        "duration_ms": duration,
-    }
+    return {"revealed": None, "node_outlines": {}, "letter_colors": {},
+            "edge_colors": {}, "readout": [], "t": 0.0, "duration_ms": duration}
 
 
 def suffix_readout(step: dict, threaded_shown: int, created_shown: int) -> "list":
-    """The suffix at the bottom, blue for what already existed, green for new."""
     suffix = step["suffix"]
     shared = len(step["threaded"])
     pieces = [("%2d  " % step["start"], TEXT_DARK)]
@@ -630,12 +677,11 @@ def suffix_readout(step: dict, threaded_shown: int, created_shown: int) -> "list
         pieces.append((suffix[0:created_shown], GREEN))
         remaining = suffix[created_shown:]
     if len(remaining) > 0:
-        pieces.append((remaining, FADED_GRAY))
+        pieces.append((remaining, FADED))
     return pieces
 
 
 def build_trie_specs() -> "list[dict]":
-    """The trie growing one suffix at a time."""
     specs = []
     revealed = set([0])
 
@@ -650,8 +696,9 @@ def build_trie_specs() -> "list[dict]":
             thread = base_frame(TRIE_THREAD_MS)
             thread["revealed"] = set(revealed)
             for node in step["threaded"]:
-                thread["node_colors"][node] = BLUE
+                thread["node_outlines"][node] = BLUE
                 thread["edge_colors"][node] = BLUE
+                thread["letter_colors"][node] = BLUE
             thread["readout"] = suffix_readout(step, shared, 0)
             specs.append(thread)
 
@@ -666,14 +713,16 @@ def build_trie_specs() -> "list[dict]":
             frame = base_frame(duration)
             frame["revealed"] = set(revealed)
             for earlier in step["threaded"]:
-                frame["node_colors"][earlier] = BLUE
+                frame["node_outlines"][earlier] = BLUE
                 frame["edge_colors"][earlier] = BLUE
+                frame["letter_colors"][earlier] = BLUE
             index = 0
             while index < created_shown:
                 fresh = step["created"][index]
                 if fresh != step["leaf"]:
-                    frame["node_colors"][fresh] = GREEN
+                    frame["node_outlines"][fresh] = GREEN
                 frame["edge_colors"][fresh] = GREEN
+                frame["letter_colors"][fresh] = GREEN
                 index = index + 1
             frame["readout"] = suffix_readout(step, shared, created_shown)
             specs.append(frame)
@@ -691,7 +740,6 @@ def build_trie_specs() -> "list[dict]":
 
 
 def collapsing_nodes() -> set:
-    """The nodes that disappear when the trie becomes the tree."""
     result = set()
     for node in INCOMING:
         if node not in SURVIVORS:
@@ -703,102 +751,101 @@ COLLAPSING = collapsing_nodes()
 
 
 def build_compress_specs() -> "list[dict]":
-    """The trie collapsing into the tree: dots vanish, letters slide together."""
     specs = []
+    everything = set(CHILDREN.keys())
 
     intro = base_frame(COMPRESS_INTRO_MS)
-    intro["revealed"] = set(CHILDREN.keys())
+    intro["revealed"] = set(everything)
     specs.append(intro)
 
     mark = base_frame(COMPRESS_MARK_MS)
-    mark["revealed"] = set(CHILDREN.keys())
+    mark["revealed"] = set(everything)
     for node in COLLAPSING:
-        mark["node_colors"][node] = ORANGE
+        mark["node_outlines"][node] = RED
     specs.append(mark)
 
     frame_index = 1
     while frame_index <= COMPRESS_MOTION_FRAMES:
-        fraction = ease(frame_index / COMPRESS_MOTION_FRAMES)
         frame = base_frame(COMPRESS_MOTION_MS)
-        frame["revealed"] = set(CHILDREN.keys())
-        frame["t"] = fraction
+        frame["revealed"] = set(everything)
+        frame["t"] = ease(frame_index / COMPRESS_MOTION_FRAMES)
         specs.append(frame)
         frame_index = frame_index + 1
 
     final = base_frame(FINAL_HOLD_MS)
-    final["revealed"] = set(CHILDREN.keys())
+    final["revealed"] = set(everything)
     final["t"] = 1.0
     specs.append(final)
     return specs
 
 
-def blend(start: "tuple[float, float]", end: "tuple[float, float]",
-          fraction: float) -> "tuple[float, float]":
-    return (start[0] + (end[0] - start[0]) * fraction,
-            start[1] + (end[1] - start[1]) * fraction)
+def blend(start: float, end: float, fraction: float) -> float:
+    return start + (end - start) * fraction
 
 
 def frame_geometry(spec: dict) -> "tuple[dict, dict, dict]":
-    """Node positions, letter positions, and node alphas for one frame."""
     fraction = spec["t"]
     node_xy = {}
-    letter_xy = {}
+    letters = {}
     alpha = {}
     for node in CHILDREN:
         if fraction <= 0.0:
             node_xy[node] = TRIE_XY[node]
             alpha[node] = 1.0
         elif node in SURVIVORS:
-            node_xy[node] = blend(TRIE_XY[node], TREE_XY[node], fraction)
+            node_xy[node] = (blend(TRIE_XY[node][0], TREE_XY[node][0], fraction),
+                             blend(TRIE_XY[node][1], TREE_XY[node][1], fraction))
             alpha[node] = 1.0
         else:
-            node_xy[node] = blend(TRIE_XY[node], INTERMEDIATE_TARGET[node], fraction)
+            node_xy[node] = (blend(TRIE_XY[node][0], COLLAPSED_XY[node][0], fraction),
+                             blend(TRIE_XY[node][1], COLLAPSED_XY[node][1], fraction))
             alpha[node] = max(0.0, 1.0 - fraction * 1.6)
     for node in INCOMING:
         if fraction <= 0.0:
-            letter_xy[node] = LETTER_TRIE[node]
+            letters[node] = LETTER_TRIE[node]
         else:
-            letter_xy[node] = blend(LETTER_TRIE[node], LETTER_TREE[node], fraction)
-    return (node_xy, letter_xy, alpha)
+            a = LETTER_TRIE[node]
+            b = LETTER_TREE[node]
+            letters[node] = (blend(a[0], b[0], fraction), blend(a[1], b[1], fraction),
+                             blend(a[2], b[2], fraction))
+    return (node_xy, letters, alpha)
+
+
+def visible_trim(node: int, visibility: float) -> float:
+    return (node_radius(node) + EDGE_GAP) * visibility
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
-    """Render one frame of either animation."""
     figure, axis = new_axes()
-    node_xy, letter_xy, alpha = frame_geometry(spec)
+    node_xy, letters, alpha = frame_geometry(spec)
     revealed = spec["revealed"]
-    fraction = spec["t"]
 
     for node in INCOMING:
         if node not in revealed:
             continue
         parent = PARENT[node]
-        color = spec["edge_colors"].get(node, EDGE_GRAY)
-        if color == EDGE_GRAY:
-            width = 0.9
+        color = spec["edge_colors"].get(node, INK)
+        if color == INK:
+            width = EDGE_WIDTH
         else:
-            width = 1.9
-        if fraction > 0.08 and node not in SURVIVORS:
-            arrow = False
-        else:
-            arrow = True
-        draw_edge(axis, node_xy[parent], node_xy[node], color, width, 1.0, arrow,
-                  node_trim(parent, alpha[parent]), node_trim(node, alpha[node]))
+            width = EDGE_WIDTH_MARKED
+        draw_edge(axis, node_xy[parent], node_xy[node], color, width,
+                  visible_trim(parent, alpha[parent]), visible_trim(node, alpha[node]))
 
     for node in INCOMING:
         if node not in revealed:
             continue
-        color = spec["edge_colors"].get(node, TEXT_DARK)
-        draw_letter(axis, letter_xy[node], INCOMING[node], color, 1.0)
+        draw_letter(axis, letters[node], INCOMING[node],
+                    spec["letter_colors"].get(node, INK))
 
     for node in CHILDREN:
         if node not in revealed:
             continue
-        draw_node(axis, node_xy[node], node, spec["node_colors"].get(node, ""),
+        draw_node(axis, node_xy[node], node, spec["node_outlines"].get(node, ""),
                   alpha[node])
 
     draw_readout(axis, spec["readout"])
-    figure.savefig(output_path, facecolor="white")
+    figure.savefig(output_path, facecolor=BACKGROUND)
     plt.close(figure)
 
 

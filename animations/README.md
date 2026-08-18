@@ -133,8 +133,17 @@ A pair on `panamabananas$`, the same string as `images/BWT/suffix_trie.png` and
 coordinates, so the first one ends on exactly the picture the second one starts
 from.
 
-**Building the trie** (`suffix_trie_construction.gif`, about 46 s). The 14
-suffixes are inserted longest first. For each one, the nodes that already exist
+These two follow the 02-180 Lecture 5 deck rather than the textbook figures,
+because that deck presents this material better: cream ground, white nodes with
+a thin dark outline, no arrowheads, large monospace letters, and collapsed edge
+labels rotated to run along their edge. Values measured from the deck: nodes
+0.25 in across, root 0.417 in, letters 18 pt, leaf indices 14 pt white on a dark
+disc, background the paper texture averaged and flattened to `#EEE9DF`. The deck
+sets its letters in Consolas, which is not installed here, so these use Menlo,
+the closest match on macOS.
+
+**Building the trie** (`suffix_trie_construction.gif`, about 46 s, 1320x1140).
+The 14 suffixes are inserted longest first. For each one, the nodes that already exist
 light up blue as the suffix threads through them, then the nodes that are new
 appear one letter at a time in green, ending in a dark numbered leaf. The line
 at the bottom shows the suffix being inserted, coloured the same way: blue for
@@ -142,12 +151,18 @@ the part that was already in the trie, green for the part being added. Nodes sit
 in their final positions from the start, so nothing jumps as the trie fills in.
 
 **Compressing to the tree** (`suffix_tree_compression.gif`, about 14 s). Every
-node on a non-branching path is marked orange, then the whole figure collapses:
-the marked nodes fade out while the letters that were separate one-character
-edge labels slide together into single stacked labels. Nothing moves sideways.
-The result is 2.4 times shorter than the trie, which is the point of the
-compression, so the empty space left at the bottom of the final frame is doing
-real work.
+node on a non-branching path is marked red, then the whole figure collapses: the
+marked nodes fade out while the letters that were separate one-character edge
+labels slide and rotate into single labels running along their new edges.
+Nothing moves sideways. The result is 1.7 times shorter than the trie, which is
+the point of the compression, so the empty space left at the bottom of the final
+frame is doing real work.
+
+Each collapsed edge is made long enough to seat its own rotated label, and the
+label is anchored toward the child end so that labels on the root's nearly
+parallel edges separate along with the children they belong to. A check asserts
+every edge is long enough for its label, and that no two trie letters land
+closer than 0.17 in.
 
 ```
 cd animations
