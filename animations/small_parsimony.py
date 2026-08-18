@@ -83,8 +83,12 @@ LEAF_VALUE_DOWN = 0.83
 # The root's vector has to clear the two edges leaving it, so it sits fully above.
 ROOT_HEADER_UP = 0.66
 ROOT_VALUE_UP = 0.38
-# The deck marks the smallest score in each vector red.
-DECK_RED = "#FF0000"
+# Sampled from the published figures this animation sits beside
+# (images/Evolution/Sankoff_step_1..4.png): the root is a green disc, the other
+# internal nodes are plain grey, and no value is highlighted in red. The deck uses
+# red for minima, but the book does not, and the book is where this GIF lands.
+BOOK_GREEN = "#5EA668"
+BOOK_GREY = "#B3B3B3"
 
 CAPTION_Y = 7.86
 LABEL_SIZE = 17.0
@@ -520,7 +524,7 @@ def build_specs() -> "list[dict]":
         leaves["vectors"].add(leaf)
         ready[leaf] = list(ALPHABET)
     leaves["ready"] = dict(ready)
-    leaves["minima"] = True
+
     leaves["caption"] = ("A leaf costs nothing for the letter it carries and is "
                          "impossible for the other three")
     specs.append(leaves)
@@ -620,8 +624,10 @@ def draw_vector(axis: "plt.Axes", node: str, ready: "list[str]", focus: str,
                   ha="center", va="center", fontproperties=MONO_BOLD, zorder=6)
         complete = len(ready) == len(ALPHABET)
         if symbol in ready:
-            if complete and SCORES[node][symbol] == smallest:
-                colour = DECK_RED
+            if minima and complete and SCORES[node][symbol] == smallest:
+                # Only the root's winning score is picked out, and in the book's
+                # green, exactly as Sankoff_step_4.png marks it.
+                colour = BOOK_GREEN
                 font = MONO_BOLD
             elif symbol == focus:
                 colour = BLUE
@@ -661,19 +667,19 @@ def draw_tree(axis: "plt.Axes", spec: dict) -> None:
                   color="white", ha="center", va="center", fontproperties=MONO_BOLD,
                   zorder=6)
         if leaf in spec["vectors"]:
-            draw_vector(axis, leaf, spec["ready"].get(leaf, []), "", spec["minima"])
+            draw_vector(axis, leaf, spec["ready"].get(leaf, []), "", False)
 
     for node in POSTORDER:
         position = POSITION[node]
         if node in spec["assigned"]:
-            face = INK
+            face = BOOK_GREEN
         else:
-            face = "#FFFFFF"
+            face = BOOK_GREY
         if node == spec["focus_node"] and node not in spec["assigned"]:
             outline = BLUE
             thickness = 2.4
         else:
-            outline = INK
+            outline = face
             thickness = 1.4
         disc = patches.Circle(position, NODE_RADIUS, facecolor=face,
                               edgecolor=outline, linewidth=thickness, zorder=5)
@@ -688,7 +694,7 @@ def draw_tree(axis: "plt.Axes", spec: dict) -> None:
             else:
                 focus = ""
             draw_vector(axis, node, spec["ready"].get(node, []), focus,
-                        spec["minima"])
+                        spec["minima"] and node == "root")
 
 
 def draw_frame(spec: dict, output_path: str) -> None:
