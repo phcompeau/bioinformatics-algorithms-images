@@ -15,8 +15,13 @@ Rendered output lives beside the static figures under `images/<Chapter>/`.
 | Building the suffix trie (Chapter 9, BWT) | [`images/BWT/suffix_trie_construction.gif`](../images/BWT/suffix_trie_construction.gif) | `suffix_tree.py trie` |
 | Compressing the suffix trie into the suffix tree (Chapter 9, BWT) | [`images/BWT/suffix_tree_compression.gif`](../images/BWT/suffix_tree_compression.gif) | `suffix_tree.py compress` |
 | Building the Burrows-Wheeler transform (Chapter 9, BWT) | [`images/BWT/bwt_construction.gif`](../images/BWT/bwt_construction.gif) | `bwt_construction.py` |
+| Inverting the Burrows-Wheeler transform (Chapter 9, BWT) | [`images/BWT/bwt_inversion.gif`](../images/BWT/bwt_inversion.gif) | `bwt_inversion.py` |
+| BWT decompression by the last-to-first property (Chapter 9, BWT) | [`images/BWT/bwt_last_to_first.gif`](../images/BWT/bwt_last_to_first.gif) | `bwt_last_to_first.py` |
+| Building the suffix array (Chapter 9, BWT) | [`images/BWT/suffix_array_construction.gif`](../images/BWT/suffix_array_construction.gif) | `suffix_array.py` |
+| UPGMA clustering (Chapter 7, Evolution) | [`images/Evolution/upgma_clustering.gif`](../images/Evolution/upgma_clustering.gif) | `upgma.py` |
 
-`make_gif.py` is the shared frame assembler.
+`make_gif.py` is the shared frame assembler and `lecture_style.py` holds the
+palette, fonts, and easing shared by the lecture-styled animations.
 
 ## Leo the ant
 
@@ -217,6 +222,77 @@ to be rotated to put the sentinel last.
 > column, `smnpbnnaaaaa$a`, is the Burrows-Wheeler transform. Nothing has been
 > lost: the sorted matrix can be rebuilt from this one column, so the transform
 > can be inverted back to the original text.
+
+## Inverting the transform, two ways
+
+**By growing the matrix** (`bwt_inversion.gif`, about 46 s, following slides
+318-340 on `banana$`). Knowing only the last column, prepend it to whatever
+prefix of each row is already known: that forms every (k+1)-mer of the cyclic
+text, and sorting them gives the first k+1 columns. Seven rounds fill the whole
+matrix, and the row ending in the sentinel is the text. The travelling character
+is red so it is clear where each new column comes from.
+
+Each of the seven rebuilt column sets is asserted against the true sorted
+rotation matrix, which is what makes the tie-breaking trustworthy: rows sharing
+a prefix must keep their previous relative order for the argument to work.
+
+**By the last-to-first property** (`bwt_last_to_first.gif`, about 34 s, following
+the "Efficient BWT Decompression" slides on `panamabananas$`). Every symbol in
+the first and last columns is numbered by which occurrence of that symbol it is.
+The kth occurrence in the last column is the kth occurrence in the first, so each
+row hands you the previous character of the text and tells you which row to jump
+to. The text fills in counterclockwise around the ring.
+
+Checked by asserting the walk visits all 14 rows exactly once, closes back on row
+0, and read backwards spells the text.
+
+## The suffix array
+
+`suffix_array_construction.gif`, about 23 s, following slides 251 onward. Every
+suffix appears with the position it starts at, the suffixes sort, and the column
+of positions left behind is the suffix array. Rows fade while they are in flight,
+since at full opacity crossing rows smear together.
+
+The array is asserted against the left-to-right leaf order of the suffix tree,
+which was itself verified against the published figure, so the two Chapter 9
+animations cross-check each other.
+
+## UPGMA
+
+`upgma_clustering.gif`, about 32 s, following Evolutionary_Trees.pptx slides
+110-120. The distance matrix sits on the left and the tree grows on the right:
+find the closest two clusters, hang a new node at half their distance, then
+replace their rows and columns with a *weighted* average, which is the step the
+deck spends a separate slide correcting. Limb lengths are dark, node heights gray.
+
+The matrix is a picture in the deck, so its numbers were read off the slide; but
+the resulting nine numbers are text, and the animation asserts its computed node
+ages and limb lengths reproduce them exactly. It also checks the tree is
+ultrametric, which is the property UPGMA guarantees.
+
+### Suggested figure captions
+
+> **Inverting the Burrows-Wheeler transform.** The last column alone determines
+> the whole matrix. Prepending it to the columns already known produces every
+> substring one character longer, and sorting those gives the next column. After
+> as many rounds as there are characters, the matrix is complete and the row
+> ending in `$` is the original text.
+
+> **BWT decompression by the last-to-first property.** Number each symbol by which
+> occurrence of that symbol it is. The kth occurrence of a symbol in the last
+> column and the kth in the first column are the same position of the text, so
+> each row names the previous character and points to the next row to visit.
+> Walking the ring recovers the text without ever rebuilding the matrix.
+
+> **Building the suffix array.** Sort the suffixes of the text and record where
+> each one started. The resulting list of starting positions is the suffix array,
+> and it stores the same ordering as the leaves of the suffix tree in a fraction
+> of the space.
+
+> **UPGMA clustering.** Repeatedly merge the two closest clusters, placing their
+> new common ancestor at half their distance, and replace them in the matrix with
+> a weighted average of their distances to everything else. The tree that results
+> is ultrametric: every leaf sits the same distance from the root.
 
 ## Method
 
