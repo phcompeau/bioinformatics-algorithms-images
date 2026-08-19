@@ -186,6 +186,13 @@ def row_y(slot: float) -> float:
     return MATRIX_TOP - slot * ROW_HEIGHT
 
 
+def columns_phrase(width: int) -> str:
+    """"the first column" rather than "the first 1 columns"."""
+    if width == 1:
+        return "the first column"
+    return "the first %d columns" % width
+
+
 def base_frame(duration: int) -> dict:
     return {"rows": [], "caption": "", "readout": False, "duration_ms": duration}
 
@@ -270,7 +277,7 @@ def build_specs() -> "list[dict]":
                                       "", 0.0, 0.0))
                 row = row + 1
             frame["rows"] = rows
-            frame["caption"] = "Sort them to get the first %d columns" % stage["width"]
+            frame["caption"] = ("Sort them to get %s" % columns_phrase(stage["width"]))
             specs.append(frame)
             step = step + 1
 
@@ -282,8 +289,8 @@ def build_specs() -> "list[dict]":
             row = row + 1
         settled["rows"] = rows
         if stage["width"] < size:
-            settled["caption"] = ("Sort them to get the first %d columns"
-                                  % stage["width"])
+            settled["caption"] = ("Sort them to get %s"
+                                  % columns_phrase(stage["width"]))
         else:
             settled["caption"] = "The matrix is complete"
         specs.append(settled)
